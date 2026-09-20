@@ -61,8 +61,16 @@ IMPLEMENT_DYNAMIC_CLASS(wxRenameFileEvent, wxEvent)
 
 void GOMessageBox(
   const wxString &text, const wxString title, long style, wxWindow *parent) {
-  wxMsgBoxEvent event(title, text, style);
-  wxTheApp->GetTopWindow()->GetEventHandler()->AddPendingEvent(event);
+  wxWindow *pTopWindow = wxTheApp->GetTopWindow();
+
+  if (pTopWindow) {
+    wxMsgBoxEvent event(title, text, style);
+
+    pTopWindow->GetEventHandler()->AddPendingEvent(event);
+  } else
+    // A headless tool has no window to show a dialog in, and crashing over
+    // one would hide the message it was trying to deliver.
+    wxLogError(wxT("%s: %s"), title, text);
 }
 
 void GOAskRenameFile(
