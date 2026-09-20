@@ -1,20 +1,27 @@
 name: Build preview
 
-# Builds the streaming fork for every platform OpenPipes ships, and publishes
-# them together to one rolling prerelease. Upstream's own `Build` workflow is
-# disabled on this fork; this replaces it with a smaller matrix plus packaging.
+# Builds the GoPlus fork for every platform OpenPipes ships. Every push to
+# master produces downloadable artifacts but publishes nothing; a rolling
+# prerelease is only created when this workflow is dispatched with the
+# `publish` input set. Upstream's own `Build` workflow is disabled on this
+# fork; this replaces it with a smaller matrix plus packaging.
 
 on:
   push:
-    branches: [feature/sample-streaming]
+    branches: [master]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Also publish the rolling GoPlus preview release'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 # Two pushes in quick succession would otherwise race over the same release tag.
 concurrency:
-  group: streaming-preview
+  group: goplus-preview
   cancel-in-progress: false
 
 jobs:
@@ -88,7 +95,7 @@ jobs:
 
     - name: Rename artifacts
       # The build names its output exactly like an official GrandOrgue release.
-      # This is an unofficial fork, so give the files a name nobody can mistake
+      # This is the GoPlus fork, so give the files a name nobody can mistake
       # for one - including once they sit in someone's downloads folder. The
       # rest of the upstream name carries platform and architecture, so keep it.
       working-directory: ${{github.workspace}}/build/${{matrix.for}}
@@ -97,7 +104,7 @@ jobs:
         shopt -s nullglob
         for f in grandorgue*${{needs.calc_ver.outputs.full_ver}}*; do
           test -f "$f" || continue
-          cp "$f" "dist/openpipes-grandorgue-streaming${f#grandorgue}"
+          cp "$f" "dist/goplus${f#grandorgue}"
         done
         ls -lh dist
         test -n "$(ls -A dist)" || { echo "no artifacts produced"; exit 1; }
@@ -105,22 +112,24 @@ jobs:
     - name: Upload result
       uses: actions/upload-artifact@v4
       with:
-        name: openpipes-${{matrix.name}}
+        name: goplus-${{matrix.name}}
         path: ${{github.workspace}}/build/${{matrix.for}}/dist/*
         if-no-files-found: error
 
   release:
     # One job publishes everything once, after every platform has finished.
-    # Letting each build job touch the release would have them racing.
+    # Letting each build job touch the release would have them racing. Only a
+    # manual dispatch with `publish` set touches the rolling release: an
+    # ordinary push to master leaves artifacts in the run and nothing else.
     needs: [calc_ver, build]
-    if: always() && needs.build.result != 'cancelled'
+    if: always() && needs.build.result != 'cancelled' && inputs.publish
     runs-on: ubuntu-latest
     steps:
     - name: Collect artifacts
       uses: actions/download-artifact@v4
       with:
         path: staging
-        pattern: openpipes-*
+        pattern: goplus-*
         merge-multiple: true
 
     - name: Publish rolling preview release
@@ -130,33 +139,34 @@ jobs:
       working-directory: staging
       run: |
         ls -lh
-        TAG=streaming-preview
+        TAG=goplus-preview
         cat > NOTES.md <<'EOF'
-        Preview build of GrandOrgue carrying the OpenPipes sample-streaming engine,
-        for Windows, Linux x86_64, Raspberry Pi (64-bit and armhf) and macOS.
+        GoPlus preview build: GrandOrgue with Hauptwerk sample set support and a
+        demand-paged streaming engine, for Windows, Linux x86_64, Raspberry Pi
+        (64-bit and armhf) and macOS.
 
         **This is not a GrandOrgue release** and the GrandOrgue project does not
         support it. Report anything wrong here, not upstream:
-        https://github.com/bonninr/grandorgue/issues
+        https://github.com/bonninr/goplus/issues
 
-        Streaming is off by default. Turn it on from the command line:
+        Hauptwerk `.Organ_Hauptwerk_xml` definitions load through the ordinary
+        organ dialog. Options that cost processing time (wind model, per-pipe
+        voicing) can be switched off for slower machines.
+
+        Streaming is off by default because it wants fast storage. Turn it on in
+        *Settings -> Options -> Cache* and set how much of the start of each
+        sample stays in RAM there; the same options are on the command line:
 
             grandorgue --stream --head-kb 256 "your organ.organ"
 
-        or tick *Stream samples from cache* under Settings -> Options.
-
-        `--head-kb` sets how much of the start of each sample stays in RAM. Lower
-        saves more memory and leans harder on your storage; 256 is a sensible
-        start. Add `--bounded-build` the first time you load a set too large to
-        fit in memory, so the sample cache can be created at all.
-
-        Wants an SSD. On a Raspberry Pi that means a USB SSD or an NVMe hat - an
-        SD card will not keep up.
+        Use *Build the cache without loading the whole organ* the first time you
+        load a set too large to fit in memory. On a Raspberry Pi, streaming
+        needs a USB SSD or an NVMe hat - an SD card will not keep up.
         EOF
         rm -f NOTES.md.bak
         gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-        gh release create "$TAG" openpipes-* \
-          --title "GrandOrgue + streaming engine (OpenPipes preview)" \
+        gh release create "$TAG" goplus-* \
+          --title "GoPlus preview - Hauptwerk support and streaming engine" \
           --notes-file NOTES.md \
           --prerelease
         echo "released:"

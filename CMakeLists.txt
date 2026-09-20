@@ -366,25 +366,27 @@ endif()
 
 # packaging
 
-# deal with possible package names among grandorgue, grandorgue-wx30, grandorgue-wx32
-set(BASE_PACKAGE_NAME "grandorgue")
+# deal with possible package names among goplus, goplus-wx30, goplus-wx32.
+# The grandorgue-* names stay in the obsoletes/replaces lists so that
+# installing this fork over an official GrandOrgue package replaces it.
+set(BASE_PACKAGE_NAME "goplus")
+set(OLD_PACKAGE_NAMES "grandorgue" "grandorgue-wx30" "grandorgue-wx32")
 
-set(OTHER_PACKAGE_NAMES "${BASE_PACKAGE_NAME}" "${BASE_PACKAGE_NAME}-wx30" "${BASE_PACKAGE_NAME}-wx32")
+set(OTHER_PACKAGE_NAMES ${OLD_PACKAGE_NAMES})
 set(CPACK_PACKAGE_NAME "${BASE_PACKAGE_NAME}")
 if(CMAKE_PACKAGE_SUFFIX)
   set(CPACK_PACKAGE_NAME "${BASE_PACKAGE_NAME}-${CMAKE_PACKAGE_SUFFIX}")
 endif()
-list(REMOVE_ITEM OTHER_PACKAGE_NAMES "${CPACK_PACKAGE_NAME}")
 if(NOT GO_SEPARATE_LINUX_PACKAGES)
   # For automatic removal of previously installed subpackages
-  list(APPEND OTHER_PACKAGE_NAMES "${BASE_PACKAGE_NAME}-resources" "${BASE_PACKAGE_NAME}-demo")
+  list(APPEND OTHER_PACKAGE_NAMES "grandorgue-resources" "grandorgue-demo")
 endif()
 
 set(CPACK_PACKAGE_VENDOR "GrandOrgue contributors")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OpenSource Virtual Pipe Organ Software")
 set(
   CPACK_PACKAGE_DESCRIPTION
-  "GrandOrgue is a virtual pipe organ sample player application"
+  "GoPlus is a virtual pipe organ sample player with Hauptwerk sample set support, based on GrandOrgue"
 )
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_RELEASE ${BUILD_VERSION})
@@ -398,18 +400,18 @@ set(CPACK_SOURCE_IGNORE_FILES "/\\\\.git/" "/build/")
 
 # components
 set(CPACK_COMPONENTS_ALL Unspecified resources demo)
-set(CPACK_COMPONENT_UNSPECIFIED_DISPLAY_NAME "GrandOrgue")
+set(CPACK_COMPONENT_UNSPECIFIED_DISPLAY_NAME "GoPlus")
 
-set(CPACK_COMPONENT_RESOURCES_DISPLAY_NAME "GrandOrgue Resource Files")
+set(CPACK_COMPONENT_RESOURCES_DISPLAY_NAME "GoPlus Resource Files")
 set(
   CPACK_COMPONENT_RESOURCES_DESCRIPTION
-  "This package contains the various resource files for GrandOrgue"
+  "This package contains the various resource files for GoPlus"
 )
 
-set(CPACK_COMPONENT_DEMO_DISPLAY_NAME "GrandOrgue Demo Sampleset")
+set(CPACK_COMPONENT_DEMO_DISPLAY_NAME "GoPlus Demo Sampleset")
 set(
   CPACK_COMPONENT_DEMO_DESCRIPTION 
-  "This package contains the demo sampleset for GrandOrgue"
+  "This package contains the demo sampleset for GoPlus"
 )
 
 set(CPACK_COMPONENT_UNSPECIFIED_HIDDEN OFF)
@@ -493,15 +495,15 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   set(CPACK_RPM_PACKAGE_LICENSE "GPL-2.0-or-later")
   set(CPACK_RPM_PACKAGE_RELEASE "${CPACK_PACKAGE_RELEASE}")
   set(CPACK_RPM_PACKAGE_GROUP "Productivity/Multimedia/Sound/Midi")
-  set(CPACK_RPM_PACKAGE_URL "https://github.com/GrandOrgue/grandorgue")
+  set(CPACK_RPM_PACKAGE_URL "https://github.com/bonninr/goplus")
   set(CPACK_RPM_MAIN_COMPONENT Unspecified)
   set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
   set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
   set(CPACK_RPM_UNSPECIFIED_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
   set(CPACK_RPM_UNSPECIFIED_PACKAGE_REQUIRES_POST "shared-mime-info, desktop-file-utils")
   set(CPACK_RPM_UNSPECIFIED_PACKAGE_REQUIRES_POSTUN "shared-mime-info, desktop-file-utils")
-  set(CPACK_RPM_UNSPECIFIED_PACKAGE_REQUIRES "grandorgue-resources")
-  set(CPACK_RPM_UNSPECIFIED_PACKAGE_SUGGESTS "grandorgue-demo")
+  set(CPACK_RPM_UNSPECIFIED_PACKAGE_REQUIRES "${BASE_PACKAGE_NAME}-resources")
+  set(CPACK_RPM_UNSPECIFIED_PACKAGE_SUGGESTS "${BASE_PACKAGE_NAME}-demo")
   set(CPACK_RPM_RESOURCES_PACKAGE_SUMMARY "${CPACK_COMPONENT_RESOURCES_DISPLAY_NAME}")
   set(CPACK_RPM_RESOURCES_PACKAGE_ARCHITECTURE noarch)
   set(CPACK_RPM_RESOURCES_FILE_NAME RPM-DEFAULT)
@@ -535,17 +537,17 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
   # for deb
   set(CPACK_DEB_COMPONENT_INSTALL GO_SEPARATE_LINUX_PACKAGES)
-  set(CPACK_DEBIAN_UNSPECIFIED_PACKAGE_NAME "grandorgue")
+  set(CPACK_DEBIAN_UNSPECIFIED_PACKAGE_NAME "${BASE_PACKAGE_NAME}")
   set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
   set(CPACK_DEBIAN_PACKAGE_RELEASE "${CPACK_PACKAGE_RELEASE}")
   set(CPACK_DEBIAN_RESOURCES_PACKAGE_ARCHITECTURE all)
   set(CPACK_DEBIAN_DEMO_PACKAGE_ARCHITECTURE all)
-  set(CPACK_DEBIAN_UNSPECIFIED_DEPENDS "grandorgue-resources")
-  set(CPACK_DEBIAN_RESOURCES_DEPENDS "grandorgue")
+  set(CPACK_DEBIAN_UNSPECIFIED_DEPENDS "${BASE_PACKAGE_NAME}-resources")
+  set(CPACK_DEBIAN_RESOURCES_DEPENDS "${BASE_PACKAGE_NAME}")
   set(CPACK_DEBIAN_ENABLE_COMPONENT_DEPENDS ON)
   set(CPACK_DEBIAN_PACKAGE_SECTION sound)
   set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-  set(CPACK_DEBIAN_UNSPECIFIED_PACKAGE_RECOMMENDS "grandorgue-demo")
+  set(CPACK_DEBIAN_UNSPECIFIED_PACKAGE_RECOMMENDS "${BASE_PACKAGE_NAME}-demo")
   set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
   set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
       "${CMAKE_SOURCE_DIR}/build-scripts/for-linux/debian/postinst"
