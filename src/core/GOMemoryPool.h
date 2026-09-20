@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2026 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -31,6 +31,9 @@ class GOMemoryPool {
   unsigned m_AllocError;
   size_t m_TouchPos;
   bool m_TouchCache;
+  bool m_IsStreamFromCache;
+  size_t m_StreamHeadBytes;
+  bool m_IsTransientMode;
 
   void InitPool();
   void GrowPool(size_t size);
@@ -48,6 +51,21 @@ public:
   GOMemoryPool();
   ~GOMemoryPool();
   void SetMemoryLimit(size_t limit);
+  void SetStreamFromCache(bool isEnabled, size_t headBytes = 256 * 1024);
+  bool IsStreamFromCache() const { return m_IsStreamFromCache; }
+
+  /**
+   * Transient mode: every allocation is served by malloc() instead of the
+   * bump-allocated pool, so that Free() actually returns the memory to the
+   * system. The pool itself can never release an individual allocation
+   * (m_PoolPtr only moves forward), so a caller that loads objects one at a
+   * time and discards them again - the bounded-memory cache build - must
+   * enable this, otherwise peak memory still grows to the size of the whole
+   * organ. Not for the normal load path: pool allocation is faster and keeps
+   * the sample data contiguous.
+   */
+  void SetTransientMode(bool isEnabled) { m_IsTransientMode = isEnabled; }
+  bool IsTransientMode() const { return m_IsTransientMode; }
   void TouchMemory(std::atomic_bool &stop);
 
   void *Alloc(size_t length, bool final);

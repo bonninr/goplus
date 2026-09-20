@@ -120,6 +120,8 @@ GOOrganController::GOOrganController(GOConfig &config, bool isAppInitialized)
   // fails before reaching that point), which would otherwise leak it.
   m_elementcreators.push_back(m_setter);
   m_pool.SetMemoryLimit(m_config.MemoryLimit() * 1024 * 1024);
+  m_pool.SetStreamFromCache(
+    m_config.StreamFromCache(), (size_t)m_config.StreamHeadKB() * 1024);
 }
 
 GOOrganController::~GOOrganController() {
@@ -393,6 +395,16 @@ void GOOrganController::LoadObjects(GOProgressMonitor &monitor) {
     dummy.resize(1024 * 1024 * 50);
     ResolveReferences();
 
+    /* If asked to, write the cache one object at a time before doing anything
+     * else. The ordinary path below then finds a cache and maps it, so sample
+     * data is never all resident at once - not even during the build, which is
+     * what otherwise sets the RAM floor for a large organ. A failure here just
+     * removes the partial file and leaves the normal load to run. */
+    if (
+      m_config.BoundedCacheBuild() && m_config.ManageCache()
+      && !wxFileExists(m_LoadedOrganInfo.cacheFilePath))
+      BuildCacheBounded(ShouldCompressCache(), monitor);
+
     /* Figure out list of pipes to load */
     GOCacheObjectDistributor objectDistributor(GetCacheObjects());
 
@@ -486,7 +498,7 @@ void GOOrganController::LoadObjects(GOProgressMonitor &monitor) {
         if (objectDistributor.IsComplete())
           m_Cacheable = true;
         if (m_config.ManageCache() && m_Cacheable)
-          UpdateCache(m_config.CompressCache(), monitor);
+          UpdateCache(ShouldCompressCache(), monitor);
       }
 
       // Despite a possible exception automatic calling ~GOLoadThread from
@@ -616,6 +628,83 @@ void GOOrganController::LoadCombination(const wxString &file) {
     wxLogError(errMsg);
     GOMessageBox(errMsg, _("Load error"), wxOK | wxICON_ERROR, NULL);
   }
+}
+
+bool GOOrganController::ShouldCompressCache() const {
+  const bool isCompressAsked = m_config.CompressCache();
+  const bool isDefeatedByStreaming = isCompressAsked && m_config.StreamFromCache();
+
+  if (isDefeatedByStreaming)
+    wxLogWarning(_("Sample streaming requires a cache that can be memory "
+                   "mapped, so this cache is being written uncompressed. "
+                   "Turn off sample streaming to compress it instead."));
+  return isCompressAsked && !isDefeatedByStreaming;
+}
+
+bool GOOrganController::BuildCacheBounded(
+  bool isCompress, GOProgressMonitor &monitor) {
+  bool isOk = false;
+
+  DeleteCache();
+
+  GOCacheObjectDistributor objectDistributor(GetCacheObjects());
+
+  monitor.Setup(objectDistributor.GetNObjects(), _("Building sample cache"));
+
+  wxFileOutputStream file(m_LoadedOrganInfo.cacheFilePath);
+
+  if (file.IsOk()) {
+    GOCacheWriter writer(file, isCompress);
+
+    /* Every allocation must come from the heap here: the pool is a bump
+     * allocator whose Free() reclaims nothing, so without this the memory of
+     * each object would accumulate exactly as in the normal load path and the
+     * whole exercise would be pointless. */
+    m_pool.SetTransientMode(true);
+
+    try {
+      isOk = writer.WriteHeader();
+
+      GOHashType hash = GenerateCacheHash();
+      if (!writer.Write(&hash, sizeof(hash)))
+        isOk = false;
+
+      while (isOk) {
+        GOCacheObject *obj = objectDistributor.FetchNext();
+
+        if (!obj)
+          break;
+        if (!obj->LoadFromFileWithoutExc(m_FileStore, m_pool)) {
+          isOk = false;
+          wxLogError(obj->GetLoadError());
+        } else if (!obj->SaveCache(writer)) {
+          isOk = false;
+          wxLogError(
+            _("Save of %s to the cache failed"), obj->GetLoadTitle().c_str());
+        }
+        /* Discard right away, whether or not it saved: from here on the only
+         * copy that matters is the one in the cache file. */
+        obj->UnloadWithoutExc(m_pool);
+        if (
+          isOk
+          && !monitor.Update(objectDistributor.GetPos(), obj->GetLoadTitle()))
+          isOk = false;
+      }
+    } catch (...) {
+      m_pool.SetTransientMode(false);
+      writer.Close();
+      DeleteCache();
+      throw;
+    }
+
+    m_pool.SetTransientMode(false);
+    writer.Close();
+    if (!isOk)
+      DeleteCache();
+  } else
+    wxLogError(
+      _("Opening the cache file %s failed"), m_LoadedOrganInfo.cacheFilePath);
+  return isOk;
 }
 
 bool GOOrganController::UpdateCache(bool compress, GOProgressMonitor &monitor) {
@@ -783,8 +872,17 @@ GOOrgan GOOrganController::GetOrganInfo() {
 }
 
 wxString GOOrganController::GetCombinationsDir() const {
-  return wxFileName(m_config.OrganCombinationsPath(), GetOrganName())
-    .GetFullPath();
+  // GetOrganName() is free text from the ODF and very often carries the
+  // manuals/stops notation ("Nancy Demo Build III/50"), so it can contain a
+  // path separator. wxFileName(path, name) requires name to be a bare file
+  // name: a separator asserts in debug builds and, with asserts compiled out,
+  // silently puts the combinations somewhere else entirely. Only separators
+  // are replaced, so organ directories that work today keep their names.
+  wxString dirName = GetOrganName();
+
+  dirName.Replace(wxT("/"), wxT("-"));
+  dirName.Replace(wxT("\\"), wxT("-"));
+  return wxFileName(m_config.OrganCombinationsPath(), dirName).GetFullPath();
 }
 
 void GOOrganController::LoadMIDIFile(

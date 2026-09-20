@@ -44,3 +44,15 @@ add_executable(GOOrganLoadTest GOOrganLoadTest.cpp)
 BUILD_EXECUTABLE(GOOrganLoadTest)
 target_include_directories(GOOrganLoadTest PUBLIC ${CMAKE_SOURCE_DIR}/src/grandorgue)
 target_link_libraries(GOOrganLoadTest golib)
+
+# Measurement harness for the sample cache modes. POSIX only: it reports
+# getrusage() page-fault counters, which have no Windows equivalent here, and
+# the Windows build cross-compiles with mingw where <sys/resource.h> does not
+# exist. The same options are available on the GrandOrgue binary itself
+# (--stream / --head-kb / --bounded-build) on every platform.
+if(NOT WIN32)
+  add_executable(GOLoadProbe GOLoadProbe.cpp)
+  BUILD_EXECUTABLE(GOLoadProbe)
+  target_include_directories(GOLoadProbe PUBLIC ${CMAKE_SOURCE_DIR}/src/grandorgue)
+  target_link_libraries(GOLoadProbe golib)
+endif()
