@@ -23,6 +23,10 @@
 
 const wxSize SPINCTRL_SIZE(120, wxDefaultCoord);
 
+BEGIN_EVENT_TABLE(GOSettingsOptions, wxPanel)
+EVT_CHECKBOX(ID_STREAM_FROM_CACHE, GOSettingsOptions::OnStreamChanged)
+END_EVENT_TABLE()
+
 GOSettingsOptions::GOSettingsOptions(GOConfig &settings, wxWindow *parent)
   : wxPanel(parent, wxID_ANY), m_config(settings) {
   wxArrayString choices;
@@ -33,6 +37,9 @@ GOSettingsOptions::GOSettingsOptions(GOConfig &settings, wxWindow *parent)
   m_OldLoopLoad = m_config.LoopLoad();
   m_OldAttackLoad = m_config.AttackLoad();
   m_OldReleaseLoad = m_config.ReleaseLoad();
+  m_OldStreamFromCache = m_config.StreamFromCache();
+  m_OldStreamHeadKB = m_config.StreamHeadKB();
+  m_OldBoundedCacheBuild = m_config.BoundedCacheBuild();
 
   wxBoxSizer *topSizer = new wxBoxSizer(wxVERTICAL);
   wxBoxSizer *item0 = new wxBoxSizer(wxHORIZONTAL);
@@ -384,18 +391,51 @@ GOSettingsOptions::GOSettingsOptions(GOConfig &settings, wxWindow *parent)
   m_ManageCache->SetValue(m_config.ManageCache());
   item6->Add(
     m_StreamFromCache = new wxCheckBox(
-      this, wxID_ANY, _("Stream samples from cache (NVMe, demand-paged)")),
+      this,
+      ID_STREAM_FROM_CACHE,
+      _("Stream samples from cache (demand-paged)")),
     0,
     wxEXPAND | wxALL,
     5);
+  m_StreamFromCache->SetToolTip(
+    _("Read sample data from the cache on demand instead of loading it all "
+      "into memory. Needs a fast SSD or NVMe disk. Streaming and compression "
+      "exclude each other."));
   m_StreamFromCache->SetValue(m_config.StreamFromCache());
+
+  grid = new wxFlexGridSizer(2, 5, 5);
+  item6->Add(grid, 0, wxEXPAND | wxALL, 5);
+  grid->Add(
+    new wxStaticText(this, wxID_ANY, _("Keep at sample start (KB):")),
+    0,
+    wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+  grid->Add(
+    m_StreamHeadKB = new wxSpinCtrl(
+      this, ID_STREAM_HEAD_KB, wxEmptyString, wxDefaultPosition, SPINCTRL_SIZE),
+    0,
+    wxALL);
+  m_StreamHeadKB->SetRange(0, 65536);
+  m_StreamHeadKB->SetValue(m_config.StreamHeadKB());
+  m_StreamHeadKB->SetToolTip(
+    _("How much of the start of every sample stays in RAM while streaming. "
+      "Lower values save more memory and lean harder on the storage; raise "
+      "it if note attacks stutter."));
+
   item6->Add(
     m_BoundedCacheBuild = new wxCheckBox(
-      this, wxID_ANY, _("Build the cache without loading the whole organ")),
+      this,
+      ID_BOUNDED_CACHE_BUILD,
+      _("Build the cache without loading the whole organ")),
     0,
     wxEXPAND | wxALL,
     5);
+  m_BoundedCacheBuild->SetToolTip(
+    _("Create the sample cache one object at a time, so building it does not "
+      "need enough RAM for the whole organ. Use it the first time a large "
+      "sample set is loaded."));
   m_BoundedCacheBuild->SetValue(m_config.BoundedCacheBuild());
+
+  UpdateStreaming();
 
   item9->Add(
     m_ODFCheck = new wxCheckBox(this, ID_ODF_CHECK, _("Perform strict ODF")),
@@ -436,6 +476,7 @@ bool GOSettingsOptions::TransferDataFromWindow() {
   m_config.CompressCache(m_CompressCache->IsChecked());
   m_config.ManageCache(m_ManageCache->IsChecked());
   m_config.StreamFromCache(m_StreamFromCache->IsChecked());
+  m_config.StreamHeadKB((unsigned)m_StreamHeadKB->GetValue());
   m_config.BoundedCacheBuild(m_BoundedCacheBuild->IsChecked());
   m_config.LoadLastFile(m_LoadLastFile->GetCurrentValue());
   m_config.ODFCheck(m_ODFCheck->IsChecked());
@@ -466,13 +507,33 @@ bool GOSettingsOptions::TransferDataFromWindow() {
   return true;
 }
 
+void GOSettingsOptions::OnStreamChanged(wxCommandEvent &event) {
+  UpdateStreaming();
+}
+
+void GOSettingsOptions::UpdateStreaming() {
+  const bool isStreaming = m_StreamFromCache->GetValue();
+
+  m_StreamHeadKB->Enable(isStreaming);
+  // Streamed samples are read page by page, so the cache cannot be
+  // zlib-compressed; keep the stored compression choice but show that it
+  // does not apply while streaming is on.
+  if (isStreaming)
+    m_CompressCache->Disable();
+  else
+    m_CompressCache->Enable();
+}
+
 bool GOSettingsOptions::NeedReload() {
   return m_OldLosslessCompression != m_config.LosslessCompression()
     || m_OldBitsPerSample != m_config.BitsPerSample()
     || m_OldLoopLoad != m_config.LoopLoad()
     || m_OldAttackLoad != m_config.AttackLoad()
     || m_OldReleaseLoad != m_config.ReleaseLoad()
-    || m_OldChannels != m_config.LoadChannels();
+    || m_OldChannels != m_config.LoadChannels()
+    || m_OldStreamFromCache != m_config.StreamFromCache()
+    || m_OldStreamHeadKB != m_config.StreamHeadKB()
+    || m_OldBoundedCacheBuild != m_config.BoundedCacheBuild();
 }
 
 bool GOSettingsOptions::NeedRestart() {
