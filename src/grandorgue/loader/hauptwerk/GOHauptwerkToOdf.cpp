@@ -1271,16 +1271,29 @@ void GOHauptwerkToOdf::BuildPanels() {
 void GOHauptwerkToOdf::SetMouseRect(
   const wxString &group, const GOHauptwerkObject &imageSet) {
   /* Where the image responds to a click. Hauptwerk gives the edges relative
-   * to the image, GrandOrgue an offset and a size. */
-  const long left
-    = imageSet.GetLong(wxT("ClickableAreaLeftRelativeXPosPixels"));
-  const long top = imageSet.GetLong(wxT("ClickableAreaTopRelativeYPosPixels"));
-  const long right
-    = imageSet.GetLong(wxT("ClickableAreaRightRelativeXPosPixels"));
-  const long bottom
-    = imageSet.GetLong(wxT("ClickableAreaBottomRelativeYPosPixels"));
+   * to the image, GrandOrgue an offset and a size within the drawn element,
+   * and refuses an organ whose rectangle runs past it. A clickable area can
+   * be stated past the image's own edge - one of the sets on hand states a
+   * knob 134 pixels tall over a shorter picture - so it is cut to the image
+   * rather than handed over whole. */
+  const long width = imageSet.GetLong(wxT("ImageWidthPixels"));
+  const long height = imageSet.GetLong(wxT("ImageHeightPixels"));
+  long left = imageSet.GetLong(wxT("ClickableAreaLeftRelativeXPosPixels"));
+  long top = imageSet.GetLong(wxT("ClickableAreaTopRelativeYPosPixels"));
+  long right = imageSet.GetLong(wxT("ClickableAreaRightRelativeXPosPixels"));
+  long bottom = imageSet.GetLong(wxT("ClickableAreaBottomRelativeYPosPixels"));
 
-  if (right > left && bottom > top) {
+  if (left < 0)
+    left = 0;
+  if (top < 0)
+    top = 0;
+  if (width > 0 && right > width)
+    right = width;
+  if (height > 0 && bottom > height)
+    bottom = height;
+  /* With no declared size the image itself decides, which is what GrandOrgue
+   * does when it is given no rectangle at all. */
+  if (right > left && bottom > top && width > 0 && height > 0) {
     Set(group, wxT("MouseRectLeft"), left);
     Set(group, wxT("MouseRectTop"), top);
     Set(group, wxT("MouseRectWidth"), right - left);
@@ -1563,6 +1576,14 @@ void GOHauptwerkToOdf::BuildRank(
   Set(group, wxT("Percussive"), WX_ODF_NO);
   Set(group, wxT("AcceptsRetuning"), WX_ODF_YES);
 
+  /* Hauptwerk states the velocity shaping per pipe; GrandOrgue reads it per
+   * rank, so it is carried only where the whole rank agrees on it - which is
+   * the ordinary case, a rank being one set of pipes voiced together. */
+  double rankMinVelocityVolume = 100.0;
+  double rankMaxVelocityVolume = 100.0;
+  bool isVelocityStated = false;
+  bool isVelocityUniform = true;
+
   for (unsigned n = pipes.size(), pipeI = 0; pipeI < n; pipeI++) {
     const GOHauptwerkObject &pipe = *pipes[pipeI];
     const wxString pipeKey = wxString::Format(wxT("Pipe%03u"), pipeI + 1);
@@ -1630,25 +1651,26 @@ void GOHauptwerkToOdf::BuildRank(
        * whose pipes answer a hard touch with less. GrandOrgue holds the same
        * thing as the volume at each end of the velocity range. */
       const double velocityAttenDb = wxAtof(pLayer->Get(WX_VELOCITY_ATTEN_DB));
+      double minVelocityVolume = 100.0;
+      double maxVelocityVolume = 100.0;
 
       if (velocityAttenDb > 0.0) {
         const double softPercent
           = 100.0 * std::pow(10.0, -velocityAttenDb / 20.0);
 
-        if (pLayer->IsYes(WX_VELOCITY_INVERT)) {
-          Set(group, pipeKey + wxT("MinVelocityVolume"), 100L);
-          Set(
-            group,
-            pipeKey + wxT("MaxVelocityVolume"),
-            wxString::Format(wxT("%.4f"), softPercent));
-        } else {
-          Set(
-            group,
-            pipeKey + wxT("MinVelocityVolume"),
-            wxString::Format(wxT("%.4f"), softPercent));
-          Set(group, pipeKey + wxT("MaxVelocityVolume"), 100L);
-        }
+        if (pLayer->IsYes(WX_VELOCITY_INVERT))
+          maxVelocityVolume = softPercent;
+        else
+          minVelocityVolume = softPercent;
       }
+      if (!isVelocityStated) {
+        rankMinVelocityVolume = minVelocityVolume;
+        rankMaxVelocityVolume = maxVelocityVolume;
+        isVelocityStated = velocityAttenDb > 0.0;
+      } else if (
+        std::fabs(minVelocityVolume - rankMinVelocityVolume) >= 0.01
+        || std::fabs(maxVelocityVolume - rankMaxVelocityVolume) >= 0.01)
+        isVelocityUniform = false;
 
       if (m_IsWindModelEnabled) {
         const double flow = wxAtof(pipe.Get(wxT(
@@ -1766,6 +1788,24 @@ void GOHauptwerkToOdf::BuildRank(
           releases[relI],
           nReleases > 1);
     }
+  }
+
+  if (isVelocityStated) {
+    if (isVelocityUniform) {
+      Set(
+        group,
+        wxT("MinVelocityVolume"),
+        wxString::Format(wxT("%.4f"), rankMinVelocityVolume));
+      Set(
+        group,
+        wxT("MaxVelocityVolume"),
+        wxString::Format(wxT("%.4f"), rankMaxVelocityVolume));
+    } else
+      Warn(wxString::Format(
+        _("Rank \"%s\": the velocity shaping differs from pipe to pipe, which "
+          "GrandOrgue cannot state; the rank keeps its full volume at every "
+          "velocity"),
+        rank.Get(WX_NAME)));
   }
 }
 
