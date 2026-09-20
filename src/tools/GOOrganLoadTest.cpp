@@ -18,6 +18,7 @@
 #include <iostream>
 
 #include <wx/app.h>
+#include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/image.h>
 #include <wx/log.h>
@@ -62,6 +63,11 @@ public:
     bool isNoSwitches = false;
     bool isNoTremulantModel = false;
     bool isNoConsole = false;
+    bool isLoadSamples = false;
+    bool isStream = false;
+    bool isBoundedBuild = false;
+    bool isKeepCache = false;
+    unsigned headKb = 256;
 
     for (int i = 1; i < argc; i++) {
       const wxString arg = argv[i];
@@ -78,6 +84,16 @@ public:
         isNoTremulantModel = true;
       else if (arg == wxT("--no-console"))
         isNoConsole = true;
+      else if (arg == wxT("--load-samples"))
+        isLoadSamples = true;
+      else if (arg == wxT("--stream"))
+        isStream = true;
+      else if (arg == wxT("--bounded-build"))
+        isBoundedBuild = true;
+      else if (arg == wxT("--keep-cache"))
+        isKeepCache = true;
+      else if (arg == wxT("--head-kb") && i + 1 < argc)
+        headKb = wxAtoi(argv[++i]);
       else if (!arg.StartsWith(wxT("-")))
         organPath = arg;
     }
@@ -91,6 +107,15 @@ public:
           + wxT("goloadtest");
       wxFileName::Mkdir(workDir, wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL);
 
+      /* A cold cache unless asked otherwise, so that a run measures building
+       * it as well - which is the case a small machine actually fails on. */
+      if (!isKeepCache) {
+        wxArrayString stale;
+        wxDir::GetAllFiles(workDir, &stale);
+        for (size_t i = 0; i < stale.GetCount(); i++)
+          wxRemoveFile(stale[i]);
+      }
+
       const std::string confPath
         = std::string(workDir.mb_str()) + "/GrandOrgue.conf";
       GOConfig config("loadtest", confPath);
@@ -98,9 +123,15 @@ public:
       config.Load();
       config.OrganCachePath(workDir);
       config.OrganSettingsPath(workDir);
-      // Reading the samples would take minutes and is not what this checks;
-      // the definition is either understood or it is not long before then.
-      config.ManageCache(false);
+      /* Reading the samples takes minutes, so it only happens when asked:
+       * the definition is either understood or it is not long before then.
+       * With samples the run also exercises the cache and its streaming
+       * modes, which is the other half of what a load can get wrong. */
+      config.ManageCache(isLoadSamples);
+      config.CompressCache(false);
+      config.StreamFromCache(isStream);
+      config.StreamHeadKB(headKb);
+      config.BoundedCacheBuild(isBoundedBuild);
       // Set here rather than in the config file so a run states its own
       // conditions and leaves nothing behind for the next one.
       config.HauptwerkWindModel(isWindModel);
@@ -207,6 +238,17 @@ public:
           std::cout << "  panel " << panelI << " : "
                     << controller.GetPanel(panelI)->GetName().ToUTF8().data()
                     << "\n";
+
+        GOMemoryPool &pool = controller.GetMemoryPool();
+
+        std::cout << "  pool alloc MB : "
+                  << (pool.GetAllocSize() / (1024.0 * 1024.0)) << "\n";
+        std::cout << "  mapped cache MB: "
+                  << (pool.GetMappedSize() / (1024.0 * 1024.0)) << "\n";
+        std::cout << "  pool usage MB : "
+                  << (pool.GetPoolUsage() / (1024.0 * 1024.0)) << "\n";
+        std::cout << "  stream        : "
+                  << (pool.IsStreamFromCache() ? "yes" : "no") << "\n";
       }
       controller.Clear();
     }
