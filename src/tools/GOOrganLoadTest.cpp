@@ -146,8 +146,11 @@ public:
       GOOrganController controller(config, true);
       GOOrgan organ(organPath);
       GOSilentProgress monitor;
+      /* Without samples the load stops before the objects, which is all the
+       * definition check needs; with them the whole organ is built and the
+       * cache modes run their course. */
       const wxString errMsg
-        = controller.Load(organ, wxEmptyString, true, monitor);
+        = controller.Load(organ, wxEmptyString, !isLoadSamples, monitor);
 
       if (!errMsg.IsEmpty()) {
         std::cout << "LOAD FAILED: " << errMsg.ToUTF8().data() << "\n";
