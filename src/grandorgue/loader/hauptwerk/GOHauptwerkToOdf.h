@@ -112,6 +112,8 @@ private:
   std::map<unsigned, std::set<unsigned>> m_WindchestsByEnclosureN;
   std::map<unsigned, std::set<unsigned>> m_WindchestsByTremulantN;
   std::unordered_map<long, unsigned> m_WindchestNumberByPipeId;
+  // Hauptwerk control id -> its name, for the level controls a layer names
+  std::unordered_map<long, wxString> m_ControlNameById;
 
   // Layers, attacks and releases keyed by the object they hang off, so the
   // rank builder does not rescan tens of thousands of objects per pipe.
@@ -180,6 +182,81 @@ private:
   unsigned GetEnclosureMinimumLevel(double totalAttnDb, unsigned nPipes) const;
   void BuildEnclosures();
   void BuildRank(const GOHauptwerkObject &rank, unsigned rankN);
+  /** One attack sample, as the rank builder collects it before writing. */
+  struct GOHauptwerkAttack {
+    const GOHauptwerkObject *p_Sample;
+    wxString path;
+    // Whether the sample was recorded with the tremulant running
+    bool isTremulant;
+    // The velocity GrandOrgue starts using this attack at
+    unsigned minVelocity;
+    // How long the loop takes to fade back over itself
+    long crossfadeMs;
+  };
+
+  /** One release sample, as the rank builder collects it before ordering. */
+  struct GOHauptwerkRelease {
+    wxString path;
+    // Whether the sample was recorded with the tremulant running
+    bool isTremulant;
+    // How long the key may have been held for this release to be the one used
+    long maxKeyPressMs;
+    // How long to fade the release in over the tail of the attack
+    long crossfadeMs;
+  };
+
+  /**
+   * @return the sample behind a sample id, or nullptr when the file names none
+   */
+  const GOHauptwerkObject *FindSample(long sampleId) const;
+  /** @return the file of a sample, resolved against its package, or empty */
+  wxString ResolveSamplePath(const GOHauptwerkObject &sample) const;
+  /**
+   * Hauptwerk states a sample's recorded pitch in one of several ways and
+   * says which with a method code. Reading the pitch fields without it is
+   * guesswork: a set may declare a code of "the file's own metadata" and
+   * leave every pitch field empty.
+   */
+  static bool IsTremulantSample(const GOHauptwerkObject &sample);
+  /**
+   * @return the frequency the sample file declares it holds, or 0 when it
+   *   declares none (metadata or nothing at all)
+   */
+  static double GetDeclaredSampleHz(const GOHauptwerkObject &sample);
+  /**
+   * @return whether a layer holds the pipe's recordings with the tremulant
+   *   running. Hauptwerk states one pipe as several layers, one per state of
+   *   the tremulant, and marks them by the name of the level control each is
+   *   scaled by - "Tremmed" against "Normal" or "UnTremmed".
+   */
+  bool IsTremulantLayer(const GOHauptwerkObject &layer) const;
+  /**
+   * Collects the usable attacks of every layer of one pipe, in file order
+   * but with a speaking attack first: a pipe whose first recording is the
+   * tremulant one would otherwise be silent until the tremulant is drawn.
+   * @param outMainLayer set to the layer whose gain, voicing and velocity
+   *   shaping is carried across with the pipe, or nullptr when no layer
+   *   offers a usable attack
+   */
+  void CollectAttacks(
+    long pipeId,
+    std::vector<GOHauptwerkAttack> &out,
+    const GOHauptwerkObject *&outMainLayer) const;
+  /**
+   * Collects the usable releases of every layer of one pipe, in file order.
+   */
+  void CollectReleases(long pipeId, std::vector<GOHauptwerkRelease> &out) const;
+  /** Writes one attack's settings below the given prefix. */
+  void WriteAttack(
+    const wxString &group,
+    const wxString &prefix,
+    const GOHauptwerkAttack &attack);
+  /** Writes one release's settings below the given prefix. */
+  void WriteRelease(
+    const wxString &group,
+    const wxString &prefix,
+    const GOHauptwerkRelease &release,
+    bool hasMultiple);
   /**
    * Size GrandOrgue's own console. It is drawn whatever NumberOfPanels says,
    * but from settings whose defaults assume a small organ, so a large set
