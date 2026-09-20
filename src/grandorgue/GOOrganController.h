@@ -212,8 +212,7 @@ public:
    * the file instead of allocating. On failure the partial cache is removed
    * and the caller falls back to the normal in-memory load.
    */
-  bool BuildCacheBounded(
-  bool isCompress, GOProgressMonitor &monitor);
+  bool BuildCacheBounded(bool isCompress, GOProgressMonitor &monitor);
 
   /**
    * Whether to zlib-compress the cache file, which is not simply

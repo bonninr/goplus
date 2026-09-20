@@ -632,7 +632,8 @@ void GOOrganController::LoadCombination(const wxString &file) {
 
 bool GOOrganController::ShouldCompressCache() const {
   const bool isCompressAsked = m_config.CompressCache();
-  const bool isDefeatedByStreaming = isCompressAsked && m_config.StreamFromCache();
+  const bool isDefeatedByStreaming
+    = isCompressAsked && m_config.StreamFromCache();
 
   if (isDefeatedByStreaming)
     wxLogWarning(_("Sample streaming requires a cache that can be memory "
