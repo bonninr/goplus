@@ -93,18 +93,21 @@ jobs:
         ""
         ""
 
-    - name: Rename artifacts
-      # The build names its output exactly like an official GrandOrgue release.
-      # This is the GoPlus fork, so give the files a name nobody can mistake
-      # for one - including once they sit in someone's downloads folder. The
-      # rest of the upstream name carries platform and architecture, so keep it.
+    - name: Stage artifacts
+      # The packages are already named goplus- by the packaging rules; this
+      # only gathers them for upload. A file still named grandorgue- would be
+      # one built before the packaging rename, and it is renamed rather than
+      # uploaded under a name it no longer has.
       working-directory: ${{github.workspace}}/build/${{matrix.for}}
       run: |
         mkdir -p dist
         shopt -s nullglob
-        for f in grandorgue*${{needs.calc_ver.outputs.full_ver}}*; do
+        for f in goplus*${{needs.calc_ver.outputs.full_ver}}* grandorgue*${{needs.calc_ver.outputs.full_ver}}*; do
           test -f "$f" || continue
-          cp "$f" "dist/goplus${f#grandorgue}"
+          case "$f" in
+            goplus*) cp "$f" "dist/$f" ;;
+            grandorgue*) cp "$f" "dist/goplus${f#grandorgue}" ;;
+          esac
         done
         ls -lh dist
         test -n "$(ls -A dist)" || { echo "no artifacts produced"; exit 1; }
