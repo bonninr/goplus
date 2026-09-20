@@ -52,6 +52,8 @@ GOSoundingPipe::GOSoundingPipe(
     m_OdfMidiPitchFraction(-1.0),
     m_SampleMidiKeyNumber(0),
     m_SampleMidiPitchFraction(0.0),
+    m_VoicingEqFrequency(0.0f),
+    m_VoicingEqGain(0.0f),
     m_RetunePipe(retune),
     m_IsTemperamentOriginalBased(true),
     m_SoundProvider(this),
@@ -227,6 +229,8 @@ void GOSoundingPipe::Load(
     1024,
     false,
     m_HarmonicNumber);
+  m_WindFlow = cfg.ReadFloat(
+    ODFSetting, group, prefix + wxT("WindFlow"), 0, 1000000, false, 0);
   m_WindchestN = cfg.ReadInteger(
     ODFSetting,
     group,
@@ -245,6 +249,14 @@ void GOSoundingPipe::Load(
     100.0,
     false,
     -1.0);
+  /* A shelf the sample set voices the pipe with: how much to lift or drop
+   * everything above a frequency, which is how a recording is made brighter
+   * or duller without touching the sample. Nothing is applied unless both are
+   * stated, which is how every existing organ behaves. */
+  m_VoicingEqFrequency = cfg.ReadFloat(
+    ODFSetting, group, prefix + wxT("VoicingEQFrequency"), 0, 22000, false, 0);
+  m_VoicingEqGain = cfg.ReadFloat(
+    ODFSetting, group, prefix + wxT("VoicingEQGain"), -40, 40, false, 0);
   m_RetunePipe = cfg.ReadBoolean(
     ODFSetting, group, prefix + wxT("AcceptsRetuning"), false, m_RetunePipe);
   UpdateAmplitude();
@@ -481,10 +493,22 @@ void GOSoundingPipe::SetWaveTremulant(bool on) {
   }
 }
 
+void GOSoundingPipe::ReportWindDemand(float flow) {
+  if (
+    flow != 0 && p_OrganModel && m_WindchestN >= 1
+    && m_WindchestN <= p_OrganModel->GetWindchestCount()) {
+    GOWindchest *pWindchest = p_OrganModel->GetWindchest(m_WindchestN - 1);
+
+    if (pWindchest)
+      pWindchest->AddWindDemand(flow);
+  }
+}
+
 void GOSoundingPipe::VelocityChanged(
   unsigned velocity, unsigned last_velocity) {
   if (!m_Instances && velocity) {
     // the key pressed
+    ReportWindDemand(m_WindFlow);
     GOSoundSampler *pSampler = p_OrganModel->StartPipeSample(
       &m_SoundProvider,
       m_WindchestN,
@@ -503,6 +527,7 @@ void GOSoundingPipe::VelocityChanged(
   } else if (m_Instances && !velocity) {
     // the key released
     m_Instances--;
+    ReportWindDemand(-m_WindFlow);
     if (p_CurrentLoopSampler && p_OrganModel) {
       m_LastStop
         = p_OrganModel->StopSample(&m_SoundProvider, p_CurrentLoopSampler);
@@ -563,9 +588,12 @@ void GOSoundingPipe::SetTemperament(const GOTemperament &temperament) {
 void GOSoundingPipe::PreparePlayback() {
   GOPipe::PreparePlayback();
   UpdateAudioGroup();
-  if (p_OrganModel)
+  if (p_OrganModel) {
+    m_SoundProvider.SetVoicingFilter(m_VoicingEqFrequency, m_VoicingEqGain);
+    // Sets the coefficients for both filters, so it comes after the shelf
     m_SoundProvider.SetToneBalanceFilterSamplerate(
       p_OrganModel->GetSampleRate());
+  }
 }
 
 void GOSoundingPipe::AbortPlayback() {

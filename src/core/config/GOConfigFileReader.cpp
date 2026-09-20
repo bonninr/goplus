@@ -1,6 +1,6 @@
 /*
  * Copyright 2006 Milan Digital Audio LLC
- * Copyright 2009-2023 GrandOrgue contributors (see AUTHORS)
+ * Copyright 2009-2026 GrandOrgue contributors (see AUTHORS)
  * License GPL-2.0 or later
  * (https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).
  */
@@ -20,6 +20,13 @@
 GOConfigFileReader::GOConfigFileReader() : m_Entries(), m_Hash() {}
 
 GOConfigFileReader::~GOConfigFileReader() {}
+
+void GOConfigFileReader::SetContent(
+  const std::map<wxString, std::map<wxString, wxString>> &entries,
+  const wxString &hash) {
+  m_Entries = entries;
+  m_Hash = hash;
+}
 
 wxString GOConfigFileReader::GetHash() { return m_Hash; }
 

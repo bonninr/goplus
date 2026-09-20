@@ -20,6 +20,8 @@ GOWindchest::GOWindchest(GOOrganModel &organModel)
   : r_OrganModel(organModel),
     m_Name(),
     m_Volume(1),
+    m_WindCapacity(0),
+    m_WindDemand(0.0f),
     m_enclosure(0),
     m_tremulant(0),
     m_ranks(0),
@@ -36,7 +38,51 @@ void GOWindchest::Init(GOConfigReader &cfg, wxString group, wxString name) {
   m_PipeConfig.SetName(GetName());
 }
 
+void GOWindchest::AddWindDemand(float flow) {
+  // Relaxed: the audio side wants a recent total, not a synchronised one, and
+  // a block's worth of lag on a pressure curve is inaudible.
+  float current = m_WindDemand.load(std::memory_order_relaxed);
+
+  while (!m_WindDemand.compare_exchange_weak(
+    current, current + flow, std::memory_order_relaxed))
+    ;
+}
+
+float GOWindchest::GetWindPressureFactor() const {
+  float factor = 1.0f;
+
+  if (m_WindCapacity > 0) {
+    const float demand = m_WindDemand.load(std::memory_order_relaxed);
+    // Pressure holds while the chest keeps up and falls once demand passes
+    // what it can supply. A first-order curve rather than bellows physics:
+    // it reproduces the sag a full chord produces, which is the audible part,
+    // without carrying a differential equation into the audio thread.
+    const float load = demand / m_WindCapacity;
+
+    if (load > 1.0f)
+      factor = 1.0f / load;
+    // Never let a chest collapse to silence: an organ starved of wind goes
+    // flat and thin, it does not stop.
+    if (factor < 0.5f)
+      factor = 0.5f;
+  }
+  return factor;
+}
+
+float GOWindchest::GetWindPitchFactor() const {
+  // Flue pipes flatten roughly with the square root of pressure, and the
+  // effect is small: a chest pushed to its limit loses a few cents, not a
+  // semitone. A quarter of the amplitude loss lands in that range and keeps
+  // the organ musical while the sag is audible.
+  return 1.0f - (1.0f - GetWindPressureFactor()) * 0.25f;
+}
+
 void GOWindchest::Load(GOConfigReader &cfg, wxString group, unsigned index) {
+  // Zero, the default, means an unlimited supply and no wind model at all,
+  // which is how every organ without these keys behaves.
+  m_WindCapacity = cfg.ReadFloat(
+    ODFSetting, group, wxT("WindSupplyCapacity"), 0, 1000000, false, 0);
+
   unsigned NumberOfEnclosures = cfg.ReadInteger(
     ODFSetting,
     group,
