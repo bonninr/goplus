@@ -368,8 +368,7 @@ const GOHauptwerkObject *GOHauptwerkToOdf::FindSample(long sampleId) const {
 wxString GOHauptwerkToOdf::ResolveSamplePath(
   const GOHauptwerkObject &sample) const {
   return ResolvePackagePath(
-    sample.Get(WX_SAMPLE_FILENAME),
-    sample.GetLong(WX_INSTALLATION_PACKAGE_ID));
+    sample.Get(WX_SAMPLE_FILENAME), sample.GetLong(WX_INSTALLATION_PACKAGE_ID));
 }
 
 bool GOHauptwerkToOdf::IsTremulantSample(const GOHauptwerkObject &sample) {
@@ -379,8 +378,7 @@ bool GOHauptwerkToOdf::IsTremulantSample(const GOHauptwerkObject &sample) {
     || method == HW_PITCH_METHOD_AUX_TREMULANT;
 }
 
-double GOHauptwerkToOdf::GetDeclaredSampleHz(
-  const GOHauptwerkObject &sample) {
+double GOHauptwerkToOdf::GetDeclaredSampleHz(const GOHauptwerkObject &sample) {
   const long method = sample.GetLong(WX_PITCH_METHOD, -1);
   double hz = 0.0;
 
@@ -392,8 +390,7 @@ double GOHauptwerkToOdf::GetDeclaredSampleHz(
   return hz;
 }
 
-bool GOHauptwerkToOdf::IsTremulantLayer(
-  const GOHauptwerkObject &layer) const {
+bool GOHauptwerkToOdf::IsTremulantLayer(const GOHauptwerkObject &layer) const {
   const auto nameIt = m_ControlNameById.find(
     layer.GetLong(wxT("AmpLvl_ScalingContinuousControlID"), 0));
   bool isTremulant = false;
@@ -583,8 +580,7 @@ void GOHauptwerkToOdf::BuildOrgan() {
       Set(
         WX_ORGAN,
         wxT("PitchTuning"),
-        wxString::Format(
-          wxT("%.4f"), 1200.0 * std::log2(basePitchHz / 440.0)));
+        wxString::Format(wxT("%.4f"), 1200.0 * std::log2(basePitchHz / 440.0)));
 
     /* The producer's own output trim, so sets recorded at different levels
      * play at a comparable loudness. GrandOrgue holds the same number as a
@@ -1597,8 +1593,8 @@ void GOHauptwerkToOdf::BuildRank(
        * land on the same shelf. */
       const double eqGainDb
         = wxAtof(pLayer->Get(wxT("VoicingEQ01_HighFrequencyBoostDecibels")))
-        + wxAtof(pLayer->Get(wxT(
-          "HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels")));
+        + wxAtof(pLayer->Get(
+          wxT("HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels")));
       const double eqFrequencyHz = 1000.0
         * wxAtof(pLayer->Get(wxT("VoicingEQ01_TransitionFrequencyKHertz")));
       /* Which octave of the rank the pipe speaks in. The pipe states it;
@@ -1633,8 +1629,7 @@ void GOHauptwerkToOdf::BuildRank(
        * far: the attenuation at the softest velocity, inverted on the sets
        * whose pipes answer a hard touch with less. GrandOrgue holds the same
        * thing as the volume at each end of the velocity range. */
-      const double velocityAttenDb
-        = wxAtof(pLayer->Get(WX_VELOCITY_ATTEN_DB));
+      const double velocityAttenDb = wxAtof(pLayer->Get(WX_VELOCITY_ATTEN_DB));
 
       if (velocityAttenDb > 0.0) {
         const double softPercent
