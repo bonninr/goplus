@@ -27,6 +27,9 @@ class GOSettingsOptions : public wxPanel {
     ID_MANAGE_POLYPHONY,
     ID_COMPRESS_CACHE,
     ID_MANAGE_CACHE,
+    ID_STREAM_FROM_CACHE,
+    ID_STREAM_HEAD_KB,
+    ID_BOUNDED_CACHE_BUILD,
     ID_SCALE_RELEASE,
     ID_LOAD_LAST_FILE,
     ID_RANDOMIZE,
@@ -55,6 +58,7 @@ private:
   wxCheckBox *m_CompressCache;
   wxCheckBox *m_ManageCache;
   wxCheckBox *m_StreamFromCache;
+  wxSpinCtrl *m_StreamHeadKB;
   wxCheckBox *m_BoundedCacheBuild;
   GOChoice<GOInitialLoadType> *m_LoadLastFile;
   wxCheckBox *m_Scale;
@@ -81,6 +85,13 @@ private:
   unsigned m_OldLoopLoad;
   unsigned m_OldAttackLoad;
   unsigned m_OldReleaseLoad;
+  bool m_OldStreamFromCache;
+  unsigned m_OldStreamHeadKB;
+  bool m_OldBoundedCacheBuild;
+
+  void OnStreamChanged(wxCommandEvent &event);
+
+  void UpdateStreaming();
 
 public:
   GOSettingsOptions(GOConfig &settings, wxWindow *parent);
@@ -89,6 +100,8 @@ public:
   bool NeedRestart();
 
   virtual bool TransferDataFromWindow() override;
+
+  DECLARE_EVENT_TABLE()
 };
 
 #endif
