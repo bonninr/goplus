@@ -149,6 +149,8 @@ loader/GOLoaderFilename.cpp
 loader/GOLoadThread.cpp
 loader/GOLoadWorker.cpp
 loader/GOOrganReader.cpp
+loader/hauptwerk/GOHauptwerkAttributeDict.cpp
+loader/hauptwerk/GOHauptwerkAttributeDictData.cpp
 loader/hauptwerk/GOHauptwerkOdf.cpp
 loader/hauptwerk/GOHauptwerkToOdf.cpp
 loader/cache/GOCache.cpp

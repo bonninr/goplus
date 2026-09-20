@@ -65,10 +65,11 @@ public:
  * attributes it was asked for; everything else is skipped without being
  * allocated.
  *
- * Second, Hauptwerk also has a "compressed" spelling of the same format in
- * which element names are one or two letters and need an external dictionary
- * to decode. That is not supported yet: IsCompressedFormat() reports it so a
- * caller can fail with an explanation rather than silently reading nothing.
+ * Second, Hauptwerk also has a "compressed" spelling of the same format, in
+ * which most objects are written as <o> with one- and two-letter element
+ * names. Those are decoded through GOHauptwerkAttributeDict, so a definition
+ * may mix the two spellings - the benchmark sets write the _General table
+ * in full and everything else compressed.
  */
 class GOHauptwerkOdf {
 public:
@@ -126,7 +127,7 @@ public:
   const wxString &GetFileFormatVersion() const { return m_FileFormatVersion; }
   /** Hash of the raw file, so the cache is keyed to this definition. */
   const wxString &GetHash() const { return m_Hash; }
-  /** @return whether the file uses the letter-coded spelling we cannot read. */
+  /** @return whether the file used the letter-coded spelling anywhere. */
   bool IsCompressedFormat() const { return m_IsCompressedFormat; }
 
   /** @return every object of a type, in the order the file listed them. */

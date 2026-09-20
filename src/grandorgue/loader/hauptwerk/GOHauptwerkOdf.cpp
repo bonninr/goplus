@@ -14,6 +14,7 @@
 
 #include "GOBuffer.h"
 #include "GOHash.h"
+#include "GOHauptwerkAttributeDict.h"
 
 static const wxString WX_EMPTY = wxEmptyString;
 static const wxString WX_ROOT_TAG = wxT("Hauptwerk");
@@ -150,6 +151,7 @@ void GOHauptwerkOdf::ParseBuffer(const wxString &buffer) {
   GOHauptwerkObject object;
   bool isInObject = false;
   bool hasObject = false;
+  bool isCompressedObject = false;
   size_t pos = 0;
 
   while (pos < bufferLen) {
@@ -213,7 +215,8 @@ void GOHauptwerkOdf::ParseBuffer(const wxString &buffer) {
           // An element directly inside ObjectList opens an object. In the
           // compressed spelling it is <o> rather than the type name.
           if (!isClosing) {
-            if (element == wxT("o") || element == wxT("O"))
+            isCompressedObject = element == wxT("o") || element == wxT("O");
+            if (isCompressedObject)
               m_IsCompressedFormat = true;
             isInObject = true;
             hasObject = IsWanted(objectType);
@@ -234,8 +237,18 @@ void GOHauptwerkOdf::ParseBuffer(const wxString &buffer) {
           }
           // a self-closing attribute is an empty value: nothing to record
         } else if (isClosing && element == attribute) {
-          if (hasObject && IsWanted(objectType, attribute))
-            object.Set(attribute, decodeEntities(text));
+          /* A compressed object names its attributes by letter, and the
+           * letter only means something together with the object type. An
+           * unknown letter is dropped rather than kept under its code: the
+           * code would read as an attribute name nothing knows. */
+          const wxString attributeName = isCompressedObject
+            ? GOHauptwerkAttributeDict::Lookup(objectType, attribute)
+            : attribute;
+
+          if (
+            hasObject && !attributeName.IsEmpty()
+            && IsWanted(objectType, attributeName))
+            object.Set(attributeName, decodeEntities(text));
           attribute.Clear();
           text.Clear();
         }
@@ -267,10 +280,7 @@ wxString GOHauptwerkOdf::Read(GOOpenedFile *pFile) {
 
     ParseBuffer(buffer);
 
-    if (m_IsCompressedFormat)
-      errMsg = _("This Hauptwerk organ definition uses the compressed format, "
-                 "which is not supported yet");
-    else if (m_ObjectsByType.empty())
+    if (m_ObjectsByType.empty())
       errMsg = _("No Hauptwerk objects found - is this an organ definition?");
   }
   return errMsg;

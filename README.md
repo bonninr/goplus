@@ -9,14 +9,18 @@ sample based pipe organ simulator. It plays the same organ definitions, caches
 and settings as GrandOrgue and adds two things on top:
 
 - **Hauptwerk sample sets.** An `.Organ_Hauptwerk_xml` definition loads through
-  the ordinary organ dialog. The converter is part of the loader, so there is no
-  intermediate file: the sample set is read in place and converted in memory.
-  The console is drawn from the sample set's own artwork where it provides one,
-  and a generic console is drawn otherwise. Manuals, couplers, tremulants,
-  enclosures, the switch and combination systems, crossfades, per-pipe voicing
-  and the pitch each sample was recorded at are all carried across. Processing
-  that costs time on older machines - the wind model and per-pipe voicing - can
-  be switched off.
+  the ordinary organ dialog, in either the plain or the compressed spelling
+  (the letter-coded tables are decoded with ODFEdit's attribute dictionary).
+  The converter is part of the loader, so there is no intermediate file: the
+  sample set is read in place and converted in memory. The console is drawn
+  from the sample set's own artwork where it provides one, and a generic
+  console is drawn otherwise. Manuals, couplers, tremulants, enclosures, the
+  switch and combination systems, crossfades, per-pipe voicing and the pitch
+  each sample was recorded at are all carried across. A pipe keeps all its
+  recorded attacks - including the ones made with the tremulant running, which
+  GrandOrgue plays while the tremulant is drawn - and the velocity shelves the
+  voicer set. Processing that costs time on older machines - the wind model
+  and per-pipe voicing - can be switched off.
 - **Sample streaming.** With a fast SSD or NVMe disk, sample data is paged from
   the cache on demand instead of being loaded into memory, and the cache itself
   can be built without ever holding the whole organ in RAM. Sample sets larger

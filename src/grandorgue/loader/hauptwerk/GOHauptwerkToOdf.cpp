@@ -94,23 +94,52 @@ static const long MAX_MIDI_VALUE = 127;
 // GOCoupler reads DestinationKeyshift with these as its bounds
 static const long MIN_KEYSHIFT = -24;
 static const long MAX_KEYSHIFT = 24;
+// GOPipeConfig reads PitchTuning with these as its bounds
+static const double MIN_PITCH_TUNING = -1800.0;
+static const double MAX_PITCH_TUNING = 1800.0;
 // Where GrandOrgue's synthesised tremulant sits when nothing says otherwise
 static const unsigned DEFAULT_TREMULANT_DEPTH = 10;
+// Pitch_SpecificationMethodCode: how a sample states its recorded pitch
+static const long HW_PITCH_METHOD_FILE_METADATA = 1;
+static const long HW_PITCH_METHOD_TREMULANT = 2;
+static const long HW_PITCH_METHOD_AUX_TREMULANT = 5;
+static const long HW_PITCH_METHOD_NOTE_AND_RANK = 3;
+static const long HW_PITCH_METHOD_EXACT_HZ = 4;
+// The harmonic number of an 8-foot rank
+static const long HW_UNISON_HARMONIC = 8;
+// A velocity of full scale, as a selection criterion ceiling
+static const long HW_FULL_VELOCITY = 127;
+
+static const wxString WX_PITCH_METHOD = wxT("Pitch_SpecificationMethodCode");
+static const wxString WX_PITCH_EXACT_HZ = wxT("Pitch_ExactSamplePitch");
+static const wxString WX_PITCH_NORMAL_NOTE = wxT("Pitch_NormalMIDINoteNumber");
+static const wxString WX_PITCH_RANK_HARMONIC
+  = wxT("Pitch_RankBasePitch64ftHarmonicNum");
+static const wxString WX_PITCH_TEMPERED_HARMONIC
+  = wxT("Pitch_Tempered_RankBasePitch64ftHarmonicNum");
+static const wxString WX_PITCH_BASE_DEVIATION
+  = wxT("Pitch_Tempered_BaseTuningDeviation");
+static const wxString WX_SAMPLE_FILENAME = wxT("SampleFilename");
+static const wxString WX_ATTACK_VEL_HIGH
+  = wxT("AttackSelCriteria_HighestVelocity");
+static const wxString WX_ATTACK_TIME_MIN
+  = wxT("AttackSelCriteria_MinTimeSincePrevPipeCloseMs");
+static const wxString WX_ATTACK_CTS_HIGH
+  = wxT("AttackSelCriteria_HighestCtsCtrlValue");
+static const wxString WX_RELEASE_VEL_HIGH
+  = wxT("ReleaseSelCriteria_HighestVelocity");
+static const wxString WX_RELEASE_CTS_HIGH
+  = wxT("ReleaseSelCriteria_HighestCtsCtrlValue");
+static const wxString WX_VELOCITY_ATTEN_DB
+  = wxT("AmpLvl_VelocitySensitivityMaxAttenuationDecibels");
+static const wxString WX_VELOCITY_INVERT
+  = wxT("AmpLvl_InvertVelocitySensitivity");
 
 static const wxString WX_ORGAN = wxT("Organ");
 static const wxString WX_ODF_YES = wxT("Y");
 static const wxString WX_ODF_NO = wxT("N");
 
 /** Group name with the three-digit suffix GrandOrgue ODFs use. */
-/** One release sample, as the rank builder collects it before ordering. */
-struct GOHauptwerkRelease {
-  wxString path;
-  // How long the key may have been held for this release to be the one used
-  long maxKeyPressMs;
-  // How long to fade the release in over the tail of the attack
-  long crossfadeMs;
-};
-
 static wxString numbered(const wxString &prefix, unsigned n) {
   return wxString::Format(wxT("%s%03u"), prefix, n);
 }
@@ -187,7 +216,7 @@ void GOHauptwerkToOdf::FillReadFilter(
   outFilter[WX_DIVISION_INPUT]
     = {WX_DIVISION_ID, wxT("NormalMIDINoteNumber"), WX_SWITCH_ID};
   outFilter[WX_CONTINUOUS_CONTROL]
-    = {wxT("ControlID"), WX_IMAGE_SET_INSTANCE_ID};
+    = {wxT("ControlID"), WX_NAME, WX_IMAGE_SET_INSTANCE_ID};
   outFilter[WX_CC_IMAGE_STAGE] = {
     wxT("HighestContinuousControlValue"),
     WX_IMAGE_SET_ID,
@@ -196,7 +225,8 @@ void GOHauptwerkToOdf::FillReadFilter(
     WX_PIPE_ID,
     WX_RANK_ID,
     wxT("NormalMIDINoteNumber"),
-    wxT("Pitch_Tempered_RankBasePitch64ftHarmonicNum"),
+    WX_PITCH_TEMPERED_HARMONIC,
+    WX_PITCH_BASE_DEVIATION,
     wxT("Pitch_OriginalOrgan_PitchHz"),
     wxT("WindSupply_SourceWindCompartmentID"),
     wxT("WindSupply_MassFlowRateKilogramsPerSecAtReferencePressureDiff")};
@@ -207,19 +237,33 @@ void GOHauptwerkToOdf::FillReadFilter(
     wxT("PitchLvl_DetuningPercentSemitones"),
     wxT("VoicingEQ01_HighFrequencyBoostDecibels"),
     wxT("VoicingEQ01_TransitionFrequencyKHertz"),
-    wxT("HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels")};
-  outFilter[WX_ATTACK]
-    = {WX_LAYER_ID, WX_SAMPLE_ID, wxT("LoopCrossfadeLengthInSrcSampleMs")};
+    wxT("HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels"),
+    WX_VELOCITY_ATTEN_DB,
+    WX_VELOCITY_INVERT};
+  outFilter[WX_ATTACK] = {
+    WX_LAYER_ID,
+    WX_SAMPLE_ID,
+    wxT("LoopCrossfadeLengthInSrcSampleMs"),
+    WX_ATTACK_VEL_HIGH,
+    WX_ATTACK_TIME_MIN,
+    WX_ATTACK_CTS_HIGH};
   outFilter[WX_RELEASE] = {
     WX_LAYER_ID,
     WX_SAMPLE_ID,
     wxT("ReleaseSelCriteria_LatestKeyReleaseTimeMs"),
-    wxT("ReleaseCrossfadeLengthMs")};
+    wxT("ReleaseCrossfadeLengthMs"),
+    WX_ATTACK_VEL_HIGH,
+    WX_ATTACK_CTS_HIGH,
+    WX_RELEASE_VEL_HIGH,
+    WX_RELEASE_CTS_HIGH};
   outFilter[WX_SAMPLE] = {
     WX_SAMPLE_ID,
     wxT("InstallationPackageID"),
-    wxT("SampleFilename"),
-    wxT("Pitch_ExactSamplePitch")};
+    WX_SAMPLE_FILENAME,
+    WX_PITCH_EXACT_HZ,
+    WX_PITCH_METHOD,
+    WX_PITCH_NORMAL_NOTE,
+    WX_PITCH_RANK_HARMONIC};
 }
 
 GOHauptwerkToOdf::GOHauptwerkToOdf(
@@ -312,6 +356,188 @@ void GOHauptwerkToOdf::BuildIndexes() {
     m_AttacksByLayerId[attack.GetLong(WX_LAYER_ID)].push_back(&attack);
   for (const GOHauptwerkObject &release : r_Odf.GetObjects(WX_RELEASE))
     m_ReleasesByLayerId[release.GetLong(WX_LAYER_ID)].push_back(&release);
+  for (const GOHauptwerkObject &control :
+       r_Odf.GetObjects(WX_CONTINUOUS_CONTROL))
+    m_ControlNameById[control.GetLong(wxT("ControlID"))] = control.Get(WX_NAME);
+}
+
+const GOHauptwerkObject *GOHauptwerkToOdf::FindSample(long sampleId) const {
+  return r_Odf.FindById(WX_SAMPLE, WX_SAMPLE_ID, sampleId);
+}
+
+wxString GOHauptwerkToOdf::ResolveSamplePath(
+  const GOHauptwerkObject &sample) const {
+  return ResolvePackagePath(
+    sample.Get(WX_SAMPLE_FILENAME),
+    sample.GetLong(WX_INSTALLATION_PACKAGE_ID));
+}
+
+bool GOHauptwerkToOdf::IsTremulantSample(const GOHauptwerkObject &sample) {
+  const long method = sample.GetLong(WX_PITCH_METHOD, -1);
+
+  return method == HW_PITCH_METHOD_TREMULANT
+    || method == HW_PITCH_METHOD_AUX_TREMULANT;
+}
+
+double GOHauptwerkToOdf::GetDeclaredSampleHz(
+  const GOHauptwerkObject &sample) {
+  const long method = sample.GetLong(WX_PITCH_METHOD, -1);
+  double hz = 0.0;
+
+  if (method == HW_PITCH_METHOD_EXACT_HZ)
+    hz = wxAtof(sample.Get(WX_PITCH_EXACT_HZ));
+  if (hz <= 8.0 && !IsTremulantSample(sample))
+    // A frequency stated beside another method is still what the file holds.
+    hz = wxAtof(sample.Get(WX_PITCH_EXACT_HZ));
+  return hz;
+}
+
+bool GOHauptwerkToOdf::IsTremulantLayer(
+  const GOHauptwerkObject &layer) const {
+  const auto nameIt = m_ControlNameById.find(
+    layer.GetLong(wxT("AmpLvl_ScalingContinuousControlID"), 0));
+  bool isTremulant = false;
+
+  if (nameIt != m_ControlNameById.end()) {
+    const wxString lowerName = nameIt->second.Lower();
+
+    isTremulant = lowerName.Contains(wxT("trem"))
+      && !lowerName.Contains(wxT("untrem"))
+      && !lowerName.Contains(wxT("normal"));
+  }
+  return isTremulant;
+}
+
+void GOHauptwerkToOdf::CollectAttacks(
+  long pipeId,
+  std::vector<GOHauptwerkAttack> &out,
+  const GOHauptwerkObject *&outMainLayer) const {
+  const auto layersIt = m_LayersByPipeId.find(pipeId);
+  const GOHauptwerkObject *pFirstAttackLayer = nullptr;
+  unsigned nAttacksInLayer = 0;
+
+  outMainLayer = nullptr;
+  if (layersIt != m_LayersByPipeId.end())
+    for (const GOHauptwerkObject *pLayer : layersIt->second) {
+      const auto attacksIt
+        = m_AttacksByLayerId.find(pLayer->GetLong(WX_LAYER_ID));
+
+      nAttacksInLayer = (unsigned)out.size();
+      if (attacksIt != m_AttacksByLayerId.end())
+        for (const GOHauptwerkObject *pAttack : attacksIt->second) {
+          const GOHauptwerkObject *pSample
+            = FindSample(pAttack->GetLong(WX_SAMPLE_ID));
+          const wxString path
+            = pSample ? ResolveSamplePath(*pSample) : wxString();
+
+          /* An attack selected by a continuous control cannot be chosen by
+           * GrandOrgue, which selects on velocity and key-press time alone,
+           * so it is dropped rather than played at the wrong moment. */
+          if (
+            !path.IsEmpty()
+            && pAttack->GetLong(WX_ATTACK_CTS_HIGH, HW_FULL_VELOCITY)
+              >= HW_FULL_VELOCITY) {
+            const long velHigh
+              = pAttack->GetLong(WX_ATTACK_VEL_HIGH, HW_FULL_VELOCITY);
+            const bool isTremulant
+              = IsTremulantLayer(*pLayer) || IsTremulantSample(*pSample);
+
+            out.push_back(
+              {pSample,
+               path,
+               isTremulant,
+               (unsigned)(HW_FULL_VELOCITY - velHigh),
+               pAttack->GetLong(wxT("LoopCrossfadeLengthInSrcSampleMs"), 0)});
+          }
+        }
+      if (out.size() > nAttacksInLayer) {
+        if (!pFirstAttackLayer)
+          pFirstAttackLayer = pLayer;
+        /* The layer whose voicing the pipe is given: the first speaking one
+         * that offers a usable attack. A layer holding only the tremulant
+         * recording is not a voice on its own. */
+        if (!outMainLayer && !IsTremulantLayer(*pLayer))
+          outMainLayer = pLayer;
+      }
+    }
+
+  /* A pipe whose only recordings are the tremulant ones still needs a layer
+   * to take its voicing from. */
+  if (!outMainLayer)
+    outMainLayer = pFirstAttackLayer;
+  for (unsigned n = out.size(), attackI = 0; attackI < n; attackI++)
+    if (!out[attackI].isTremulant && attackI > 0) {
+      std::swap(out[0], out[attackI]);
+      break;
+    }
+}
+
+void GOHauptwerkToOdf::CollectReleases(
+  long pipeId, std::vector<GOHauptwerkRelease> &out) const {
+  const auto layersIt = m_LayersByPipeId.find(pipeId);
+
+  if (layersIt != m_LayersByPipeId.end())
+    for (const GOHauptwerkObject *pLayer : layersIt->second) {
+      const auto releasesIt
+        = m_ReleasesByLayerId.find(pLayer->GetLong(WX_LAYER_ID));
+
+      if (releasesIt != m_ReleasesByLayerId.end())
+        for (const GOHauptwerkObject *pRelease : releasesIt->second) {
+          const GOHauptwerkObject *pSample
+            = FindSample(pRelease->GetLong(WX_SAMPLE_ID));
+          const wxString path
+            = pSample ? ResolveSamplePath(*pSample) : wxString();
+
+          if (!path.IsEmpty())
+            out.push_back(
+              {path,
+               IsTremulantLayer(*pLayer) || IsTremulantSample(*pSample),
+               pRelease->GetLong(
+                 wxT("ReleaseSelCriteria_LatestKeyReleaseTimeMs"), -1),
+               pRelease->GetLong(wxT("ReleaseCrossfadeLengthMs"), 0)});
+        }
+    }
+}
+
+void GOHauptwerkToOdf::WriteAttack(
+  const wxString &group,
+  const wxString &prefix,
+  const GOHauptwerkAttack &attack) {
+  Set(group, prefix, attack.path);
+  /* GrandOrgue needs to know whether a recording was made with the
+   * tremulant running: those are the samples it plays while the tremulant
+   * is drawn, and the ordinary ones while it is not. Stating it on every
+   * attack keeps the release lookup, which matches on the same value,
+   * finding its release. */
+  Set(group, prefix + wxT("IsTremulant"), attack.isTremulant ? 1L : 0L);
+  // Hauptwerk states a velocity ceiling; GrandOrgue the velocity a
+  // recording starts being used at, which is its complement.
+  if (attack.minVelocity > 0)
+    Set(group, prefix + wxT("AttackVelocity"), (long)attack.minVelocity);
+  if (attack.crossfadeMs > 0 && attack.crossfadeMs <= MAX_CROSSFADE_MS)
+    Set(group, prefix + wxT("LoopCrossfadeLength"), attack.crossfadeMs);
+}
+
+void GOHauptwerkToOdf::WriteRelease(
+  const wxString &group,
+  const wxString &prefix,
+  const GOHauptwerkRelease &release,
+  bool hasMultiple) {
+  Set(group, prefix, release.path);
+  Set(group, prefix + wxT("IsTremulant"), release.isTremulant ? 1L : 0L);
+  /* The longest limit carries a sentinel rather than a real one (99999 ms),
+   * and GrandOrgue expects no MaxKeyPressTime at all for the release that
+   * catches everything else. */
+  if (
+    hasMultiple && release.maxKeyPressMs >= 0
+    && release.maxKeyPressMs < HW_UNLIMITED_KEY_PRESS_MS)
+    Set(group, prefix + wxT("MaxKeyPressTime"), release.maxKeyPressMs);
+  /* How long the release takes to fade in over the tail of the attack.
+   * Hauptwerk states it per release sample and GrandOrgue reads the same
+   * thing in the same unit; leaving it out made every release begin
+   * abruptly. */
+  if (release.crossfadeMs > 0 && release.crossfadeMs <= MAX_CROSSFADE_MS)
+    Set(group, prefix + wxT("ReleaseCrossfadeLength"), release.crossfadeMs);
 }
 
 void GOHauptwerkToOdf::CheckInstallationPackages() {
@@ -346,6 +572,28 @@ void GOHauptwerkToOdf::BuildOrgan() {
     Set(WX_ORGAN, wxT("OrganBuilder"), g.Get(wxT("OrganInfo_Builder")));
     Set(WX_ORGAN, wxT("OrganBuildDate"), g.Get(wxT("OrganInfo_BuildDate")));
     Set(WX_ORGAN, wxT("OrganComments"), g.Get(wxT("OrganInfo_Comments")));
+
+    /* The organ's own concert pitch, which is not always 440: a historical
+     * instrument may be sampled at 415 and every pipe is meant to sound
+     * there. GrandOrgue states the same thing as a deviation in cents on the
+     * organ, which every pipe inherits. */
+    const double basePitchHz = wxAtof(g.Get(wxT("AudioEngine_BasePitchHz")));
+
+    if (basePitchHz > 8.0 && basePitchHz != 440.0)
+      Set(
+        WX_ORGAN,
+        wxT("PitchTuning"),
+        wxString::Format(
+          wxT("%.4f"), 1200.0 * std::log2(basePitchHz / 440.0)));
+
+    /* The producer's own output trim, so sets recorded at different levels
+     * play at a comparable loudness. GrandOrgue holds the same number as a
+     * gain in decibels on the organ, above every pipe. */
+    const double trimDb
+      = wxAtof(g.Get(wxT("AudioOut_AmplitudeLevelAdjustDecibels")));
+
+    if (trimDb != 0.0)
+      Set(WX_ORGAN, wxT("Gain"), wxString::Format(wxT("%.4f"), trimDb));
   }
   Set(WX_ORGAN, wxT("RecordingDetails"), wxEmptyString);
   Set(WX_ORGAN, wxT("DivisionalsStoreIntermanualCouplers"), WX_ODF_NO);
@@ -1322,100 +1570,90 @@ void GOHauptwerkToOdf::BuildRank(
   for (unsigned n = pipes.size(), pipeI = 0; pipeI < n; pipeI++) {
     const GOHauptwerkObject &pipe = *pipes[pipeI];
     const wxString pipeKey = wxString::Format(wxT("Pipe%03u"), pipeI + 1);
-    const auto layersIt = m_LayersByPipeId.find(pipe.GetLong(WX_PIPE_ID));
-    wxString attackPath;
+    const long pipeId = pipe.GetLong(WX_PIPE_ID);
+    const GOHauptwerkObject *pLayer = nullptr;
+    std::vector<GOHauptwerkAttack> attacks;
     std::vector<GOHauptwerkRelease> releases;
-    // Voicing lives on the layer, and only the first layer is used, so the
-    // first one that states a value is the one that counts.
-    double gainDb = 0.0;
-    double detuneCents = 0.0;
-    // The shelf the voicer applied: where it starts, and by how much
-    double eqFrequencyHz = 0.0;
-    double eqGainDb = 0.0;
-    // The pitch the attack was recorded at, which is not the pitch the pipe
-    // sounds wherever a rank is filled out by transposing another recording.
-    double attackHz = 0.0;
-    // How long the loop takes to fade back over itself
-    long loopCrossfadeMs = 0;
-    bool hasVoicing = false;
 
-    if (layersIt != m_LayersByPipeId.end())
-      for (const GOHauptwerkObject *pLayer : layersIt->second) {
-        const long layerId = pLayer->GetLong(WX_LAYER_ID);
+    CollectAttacks(pipeId, attacks, pLayer);
 
-        if (!hasVoicing) {
-          gainDb = wxAtof(pLayer->Get(wxT("AmpLvl_LevelAdjustDecibels")));
-          // Percent of a semitone, and a semitone is a hundred cents, so the
-          // number carries over unchanged.
-          detuneCents
-            = wxAtof(pLayer->Get(wxT("PitchLvl_DetuningPercentSemitones")));
-          /* The voicer's own tone shaping: a lift or a drop above a
-           * stated frequency. Hauptwerk states it twice over - once as a
-           * plain shelf, once as an adjustment to the third and upper
-           * harmonics - and the two land on the same shelf. */
-          eqGainDb
-            = wxAtof(pLayer->Get(wxT("VoicingEQ01_HighFrequencyBoostDecibels")))
-            + wxAtof(pLayer->Get(wxT(
-              "HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels")));
-          eqFrequencyHz = 1000.0
-            * wxAtof(pLayer->Get(wxT("VoicingEQ01_TransitionFrequencyKHertz")));
-          hasVoicing = true;
-        }
-
-        const auto attacksIt = m_AttacksByLayerId.find(layerId);
-
-        if (attacksIt != m_AttacksByLayerId.end())
-          for (const GOHauptwerkObject *pAttack : attacksIt->second) {
-            const GOHauptwerkObject *pSample = r_Odf.FindById(
-              WX_SAMPLE, WX_SAMPLE_ID, pAttack->GetLong(WX_SAMPLE_ID));
-
-            if (pSample && attackPath.IsEmpty()) {
-              attackPath = ResolvePackagePath(
-                pSample->Get(wxT("SampleFilename")),
-                pSample->GetLong(wxT("InstallationPackageID")));
-              attackHz = wxAtof(pSample->Get(wxT("Pitch_ExactSamplePitch")));
-              loopCrossfadeMs
-                = pAttack->GetLong(wxT("LoopCrossfadeLengthInSrcSampleMs"), 0);
-            }
-          }
-
-        const auto releasesIt = m_ReleasesByLayerId.find(layerId);
-
-        if (releasesIt != m_ReleasesByLayerId.end())
-          for (const GOHauptwerkObject *pRelease : releasesIt->second) {
-            const GOHauptwerkObject *pSample = r_Odf.FindById(
-              WX_SAMPLE, WX_SAMPLE_ID, pRelease->GetLong(WX_SAMPLE_ID));
-
-            if (pSample) {
-              const wxString path = ResolvePackagePath(
-                pSample->Get(wxT("SampleFilename")),
-                pSample->GetLong(wxT("InstallationPackageID")));
-
-              if (!path.IsEmpty())
-                releases.push_back(
-                  {path,
-                   pRelease->GetLong(
-                     wxT("ReleaseSelCriteria_LatestKeyReleaseTimeMs"), -1),
-                   pRelease->GetLong(wxT("ReleaseCrossfadeLengthMs"), 0)});
-            }
-          }
-      }
-
-    if (attackPath.IsEmpty()) {
+    if (attacks.empty() || !pLayer) {
       Warn(wxString::Format(
         _("Rank \"%s\": no usable attack sample for MIDI note %ld"),
         rank.Get(WX_NAME),
         pipe.GetLong(wxT("NormalMIDINoteNumber"))));
       Set(group, pipeKey, wxT("DUMMY"));
     } else {
-      const long harmonic
-        = pipe.GetLong(wxT("Pitch_Tempered_RankBasePitch64ftHarmonicNum"), 0);
+      const GOHauptwerkObject &firstSample = *attacks[0].p_Sample;
+      const double gainDb
+        = wxAtof(pLayer->Get(wxT("AmpLvl_LevelAdjustDecibels")));
+      // Percent of a semitone, and a semitone is a hundred cents, so the
+      // number carries over unchanged.
+      const double detuneCents
+        = wxAtof(pLayer->Get(wxT("PitchLvl_DetuningPercentSemitones")));
+      /* The voicer's own tone shaping: a lift or a drop above a stated
+       * frequency. Hauptwerk states it twice over - once as a plain shelf,
+       * once as an adjustment to the third and upper harmonics - and the two
+       * land on the same shelf. */
+      const double eqGainDb
+        = wxAtof(pLayer->Get(wxT("VoicingEQ01_HighFrequencyBoostDecibels")))
+        + wxAtof(pLayer->Get(wxT(
+          "HarmonicShaping_ThirdAndUpperHarmonicsLevelAdjustDecibels")));
+      const double eqFrequencyHz = 1000.0
+        * wxAtof(pLayer->Get(wxT("VoicingEQ01_TransitionFrequencyKHertz")));
+      /* Which octave of the rank the pipe speaks in. The pipe states it;
+       * where it says nothing the sample states the octave it was recorded
+       * at, and a rank that says nothing at all is a unison one. */
+      const long statedHarmonic = pipe.GetLong(WX_PITCH_TEMPERED_HARMONIC, 0);
+      long harmonic = statedHarmonic;
 
-      Set(group, pipeKey, attackPath);
-      if (loopCrossfadeMs > 0 && loopCrossfadeMs <= MAX_CROSSFADE_MS)
-        Set(group, pipeKey + wxT("LoopCrossfadeLength"), loopCrossfadeMs);
-      if (harmonic > 0)
-        Set(group, pipeKey + wxT("HarmonicNumber"), harmonic);
+      if (harmonic <= 0)
+        harmonic = firstSample.GetLong(WX_PITCH_RANK_HARMONIC, 0);
+      if (harmonic <= 0)
+        harmonic = HW_UNISON_HARMONIC;
+
+      /* Hauptwerk states one pipe as several attacks - the ordinary
+       * recording and, on the sets that have them, the one made with the
+       * tremulant running - and GrandOrgue selects between them by velocity
+       * and by the state of the tremulant, so all of them are carried. */
+      WriteAttack(group, pipeKey, attacks[0]);
+      Set(group, pipeKey + wxT("HarmonicNumber"), harmonic);
+      if (attacks.size() > 1) {
+        Set(group, pipeKey + wxT("AttackCount"), (long)attacks.size() - 1);
+        for (unsigned nAttacks = (unsigned)attacks.size(), attackI = 1;
+             attackI < nAttacks;
+             attackI++)
+          WriteAttack(
+            group,
+            wxString::Format(wxT("%sAttack%03u"), pipeKey, attackI),
+            attacks[attackI]);
+      }
+
+      /* How hard the key is struck reaches the pipe, and the layer says how
+       * far: the attenuation at the softest velocity, inverted on the sets
+       * whose pipes answer a hard touch with less. GrandOrgue holds the same
+       * thing as the volume at each end of the velocity range. */
+      const double velocityAttenDb
+        = wxAtof(pLayer->Get(WX_VELOCITY_ATTEN_DB));
+
+      if (velocityAttenDb > 0.0) {
+        const double softPercent
+          = 100.0 * std::pow(10.0, -velocityAttenDb / 20.0);
+
+        if (pLayer->IsYes(WX_VELOCITY_INVERT)) {
+          Set(group, pipeKey + wxT("MinVelocityVolume"), 100L);
+          Set(
+            group,
+            pipeKey + wxT("MaxVelocityVolume"),
+            wxString::Format(wxT("%.4f"), softPercent));
+        } else {
+          Set(
+            group,
+            pipeKey + wxT("MinVelocityVolume"),
+            wxString::Format(wxT("%.4f"), softPercent));
+          Set(group, pipeKey + wxT("MaxVelocityVolume"), 100L);
+        }
+      }
 
       if (m_IsWindModelEnabled) {
         const double flow = wxAtof(pipe.Get(wxT(
@@ -1429,41 +1667,68 @@ void GOHauptwerkToOdf::BuildRank(
       }
 
       /* Tuning, which is not voicing and so is not switchable: getting it
-       * wrong is not a matter of taste. Two different pitches are stated and
-       * they have to be kept apart. The sample says what was recorded; the
-       * pipe says what it sounded like in the organ it came from, and where a
-       * rank was filled out by transposing a lower recording - the top of
-       * Nancy's Trompette is its own octave below - the two are an octave
-       * apart.
+       * wrong is not a matter of taste. The sample says what was recorded
+       * and the pipe says what it sounded like in the organ it came from;
+       * the difference between the two is the pipe's detuning. Where a rank
+       * was filled out by transposing a lower recording - the top of Nancy's
+       * Trompette is its own octave below - the two are an octave apart.
        *
-       * All of it is carried in PitchTuning rather than in the key number.
-       * Cents are continuous where a key number is not, so a set that states
-       * a pipe slightly out of tune keeps that, and anything a voicer adds
-       * later simply adds to the same number. The key number is left as a
-       * fixed reference - the equally tempered pitch of the key, shifted by
-       * the rank's harmonic number - which is the pitch GrandOrgue would play
-       * the pipe at with no tuning at all. */
+       * All of it is carried in PitchTuning. Cents are continuous where a
+       * key number is not, so a set that states a pipe slightly out of tune
+       * keeps that, and anything a voicer adds later simply adds to the same
+       * number. The key number is left alone, so GrandOrgue reads the pitch
+       * of the file itself, which is what the format means by "the sample's
+       * own metadata". */
       const double soundedHz
         = wxAtof(pipe.Get(wxT("Pitch_OriginalOrgan_PitchHz")));
       const long noteN = firstMidiNote + (long)pipeI;
-      double tuningCents = m_IsVoicingEnabled ? detuneCents : 0.0;
+      const long method = firstSample.GetLong(WX_PITCH_METHOD, -1);
+      const double sampleHz = GetDeclaredSampleHz(firstSample);
+      double rawTuningCents = 0.0;
 
-      if (harmonic > 0 && noteN >= 0 && noteN <= 127) {
-        const double referenceHz
-          = 440.0 * std::pow(2.0, (noteN - 69) / 12.0) * (double)harmonic / 8.0;
-        const double midiExact = 69.0 + 12.0 * std::log2(referenceHz / 440.0);
-        const double midiKey = std::floor(midiExact);
+      /* The pipe's own deviation from equal temperament. Only where the rank
+       * says which octave it speaks in: an unpitched rank - a key click, a
+       * blower - states no harmonic and leaves a placeholder in this field. */
+      if (statedHarmonic > 0)
+        rawTuningCents += wxAtof(pipe.Get(WX_PITCH_BASE_DEVIATION));
 
-        if (midiKey >= 0 && midiKey <= 127) {
-          Set(group, pipeKey + wxT("MIDIKeyNumber"), (long)midiKey);
-          Set(
-            group,
-            pipeKey + wxT("MIDIPitchFraction"),
-            wxString::Format(wxT("%.6f"), (midiExact - midiKey) * 100.0));
-        }
+      if (sampleHz > 8.0 && soundedHz > 8.0) {
+        const double hzCents = 1200.0 * std::log2(soundedHz / sampleHz);
+
+        // Below a tenth of a semitone the two agree, and a correction that
+        // small is noise rather than intonation.
+        if (std::fabs(hzCents) > 10.0)
+          rawTuningCents += hzCents;
+      } else if (
+        method == HW_PITCH_METHOD_NOTE_AND_RANK
+        && pipe.Has(wxT("NormalMIDINoteNumber"))) {
+        /* Only where the pipe states which note it is: a noise rank - a
+         * blower, a key click - leaves the note out, and correcting it to
+         * the key it happens to be mapped to would detune a sound that has
+         * no pitch to detune. */
+        const long sampleNote = firstSample.GetLong(WX_PITCH_NORMAL_NOTE, -1);
+
+        if (sampleNote > 0 && sampleNote != noteN)
+          rawTuningCents += (double)(noteN - sampleNote) * 100.0;
       }
-      if (attackHz > 8.0 && soundedHz > 8.0)
-        tuningCents += 1200.0 * std::log2(soundedHz / attackHz);
+      if (m_IsVoicingEnabled)
+        rawTuningCents += detuneCents;
+
+      /* GrandOrgue reads PitchTuning within its own bounds and refuses an
+       * organ over a value outside them, so a pitch that would land further
+       * than a semitone and a half away is clamped rather than fatal. */
+      double tuningCents = rawTuningCents;
+
+      if (tuningCents < MIN_PITCH_TUNING || tuningCents > MAX_PITCH_TUNING) {
+        tuningCents = tuningCents < MIN_PITCH_TUNING ? MIN_PITCH_TUNING
+                                                     : MAX_PITCH_TUNING;
+        Warn(wxString::Format(
+          _("Rank \"%s\": pipe for MIDI note %ld needs %.0f cents of tuning, "
+            "more than GrandOrgue allows; it is clamped"),
+          rank.Get(WX_NAME),
+          pipe.GetLong(wxT("NormalMIDINoteNumber")),
+          rawTuningCents));
+      }
       if (m_IsVoicingEnabled && gainDb != 0.0)
         Set(
           group, pipeKey + wxT("Gain"), wxString::Format(wxT("%.4f"), gainDb));
@@ -1485,11 +1750,10 @@ void GOHauptwerkToOdf::BuildRank(
           pipeKey + wxT("PitchTuning"),
           wxString::Format(wxT("%.4f"), tuningCents));
 
-      // Hauptwerk picks a release by how long the key was held, so the
-      // shortest limit has to be tried first; the file does not list them in
-      // that order. The longest one carries a sentinel rather than a real
-      // limit (99999 ms), and GrandOrgue expects no MaxKeyPressTime at all
-      // for the release that catches everything else.
+      /* Hauptwerk picks a release by how long the key was held, so the
+       * shortest limit has to be tried first; the file does not list them in
+       * that order. */
+      CollectReleases(pipeId, releases);
       std::sort(
         releases.begin(),
         releases.end(),
@@ -1498,25 +1762,14 @@ void GOHauptwerkToOdf::BuildRank(
         });
 
       Set(group, pipeKey + wxT("ReleaseCount"), (long)releases.size());
-      for (unsigned nReleases = releases.size(), relI = 0; relI < nReleases;
-           relI++) {
-        const wxString relKey
-          = wxString::Format(wxT("%sRelease%03u"), pipeKey, relI + 1);
-        const GOHauptwerkRelease &release = releases[relI];
-
-        Set(group, relKey, release.path);
-        if (
-          nReleases > 1 && release.maxKeyPressMs >= 0
-          && release.maxKeyPressMs < HW_UNLIMITED_KEY_PRESS_MS)
-          Set(group, relKey + wxT("MaxKeyPressTime"), release.maxKeyPressMs);
-        /* How long the release takes to fade in over the tail of the attack.
-         * Hauptwerk states it per release sample and GrandOrgue reads the
-         * same thing in the same unit; leaving it out made every release
-         * begin abruptly. */
-        if (release.crossfadeMs > 0 && release.crossfadeMs <= MAX_CROSSFADE_MS)
-          Set(
-            group, relKey + wxT("ReleaseCrossfadeLength"), release.crossfadeMs);
-      }
+      for (unsigned nReleases = (unsigned)releases.size(), relI = 0;
+           relI < nReleases;
+           relI++)
+        WriteRelease(
+          group,
+          wxString::Format(wxT("%sRelease%03u"), pipeKey, relI + 1),
+          releases[relI],
+          nReleases > 1);
     }
   }
 }
@@ -2025,8 +2278,6 @@ void GOHauptwerkToOdf::BuildDefaultConsole(unsigned nStops, unsigned nManuals) {
   Set(WX_ORGAN, wxT("NumberOfLabels"), 0L);
   Set(WX_ORGAN, wxT("InfoFilename"), wxEmptyString);
   Set(WX_ORGAN, wxT("AmplitudeLevel"), 100L);
-  Set(WX_ORGAN, wxT("Gain"), 0L);
-  Set(WX_ORGAN, wxT("PitchTuning"), 0L);
 }
 
 void GOHauptwerkToOdf::Build() {
