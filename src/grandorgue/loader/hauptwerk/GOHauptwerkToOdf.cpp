@@ -410,8 +410,9 @@ void GOHauptwerkToOdf::CollectAttacks(
   std::vector<GOHauptwerkAttack> &out,
   const GOHauptwerkObject *&outMainLayer) const {
   const auto layersIt = m_LayersByPipeId.find(pipeId);
-  const GOHauptwerkObject *pFirstAttackLayer = nullptr;
-  unsigned nAttacksInLayer = 0;
+  const GOHauptwerkObject *pBestLayer = nullptr;
+  GOHauptwerkAttack bestAttack{};
+  long bestScore = -1;
 
   outMainLayer = nullptr;
   if (layersIt != m_LayersByPipeId.end())
@@ -419,7 +420,6 @@ void GOHauptwerkToOdf::CollectAttacks(
       const auto attacksIt
         = m_AttacksByLayerId.find(pLayer->GetLong(WX_LAYER_ID));
 
-      nAttacksInLayer = (unsigned)out.size();
       if (attacksIt != m_AttacksByLayerId.end())
         for (const GOHauptwerkObject *pAttack : attacksIt->second) {
           const GOHauptwerkObject *pSample
@@ -438,61 +438,61 @@ void GOHauptwerkToOdf::CollectAttacks(
               = pAttack->GetLong(WX_ATTACK_VEL_HIGH, HW_FULL_VELOCITY);
             const bool isTremulant
               = IsTremulantLayer(*pLayer) || IsTremulantSample(*pSample);
+            /* One sample is chosen, not all of them. GrandOrgue refuses a
+             * pipe whose attacks disagree on whether the sample loops - and
+             * a set mixes a looped recording with a short one often enough,
+             * a staccato attack or the recording of the tremulant, that
+             * carrying one is the only choice that always plays. The plainest
+             * speaking recording wins; a tremulant one only when the pipe has
+             * nothing else. */
+            const long score
+              = (velHigh >= HW_FULL_VELOCITY ? 4 : 0)
+              + (pAttack->GetLong(WX_ATTACK_TIME_MIN, 0) <= 0 ? 2 : 0)
+              + (isTremulant ? 0 : 1);
 
-            out.push_back(
-              {pSample,
-               path,
-               isTremulant,
-               (unsigned)(HW_FULL_VELOCITY - velHigh),
-               pAttack->GetLong(wxT("LoopCrossfadeLengthInSrcSampleMs"), 0)});
+            if (score > bestScore) {
+              bestScore = score;
+              pBestLayer = pLayer;
+              bestAttack = {
+                pSample,
+                path,
+                isTremulant,
+                (unsigned)(HW_FULL_VELOCITY - velHigh),
+                pAttack->GetLong(wxT("LoopCrossfadeLengthInSrcSampleMs"), 0)};
+            }
           }
         }
-      if (out.size() > nAttacksInLayer) {
-        if (!pFirstAttackLayer)
-          pFirstAttackLayer = pLayer;
-        /* The layer whose voicing the pipe is given: the first speaking one
-         * that offers a usable attack. A layer holding only the tremulant
-         * recording is not a voice on its own. */
-        if (!outMainLayer && !IsTremulantLayer(*pLayer))
-          outMainLayer = pLayer;
-      }
     }
 
-  /* A pipe whose only recordings are the tremulant ones still needs a layer
-   * to take its voicing from. */
-  if (!outMainLayer)
-    outMainLayer = pFirstAttackLayer;
-  for (unsigned n = out.size(), attackI = 0; attackI < n; attackI++)
-    if (!out[attackI].isTremulant && attackI > 0) {
-      std::swap(out[0], out[attackI]);
-      break;
-    }
+  if (pBestLayer) {
+    out.push_back(bestAttack);
+    outMainLayer = pBestLayer;
+  }
 }
 
 void GOHauptwerkToOdf::CollectReleases(
-  long pipeId, std::vector<GOHauptwerkRelease> &out) const {
-  const auto layersIt = m_LayersByPipeId.find(pipeId);
+  const GOHauptwerkObject &layer,
+  bool isTremulant,
+  std::vector<GOHauptwerkRelease> &out) const {
+  const auto releasesIt
+    = m_ReleasesByLayerId.find(layer.GetLong(WX_LAYER_ID));
 
-  if (layersIt != m_LayersByPipeId.end())
-    for (const GOHauptwerkObject *pLayer : layersIt->second) {
-      const auto releasesIt
-        = m_ReleasesByLayerId.find(pLayer->GetLong(WX_LAYER_ID));
+  if (releasesIt != m_ReleasesByLayerId.end())
+    for (const GOHauptwerkObject *pRelease : releasesIt->second) {
+      const GOHauptwerkObject *pSample
+        = FindSample(pRelease->GetLong(WX_SAMPLE_ID));
+      const wxString path
+        = pSample ? ResolveSamplePath(*pSample) : wxString();
 
-      if (releasesIt != m_ReleasesByLayerId.end())
-        for (const GOHauptwerkObject *pRelease : releasesIt->second) {
-          const GOHauptwerkObject *pSample
-            = FindSample(pRelease->GetLong(WX_SAMPLE_ID));
-          const wxString path
-            = pSample ? ResolveSamplePath(*pSample) : wxString();
-
-          if (!path.IsEmpty())
-            out.push_back(
-              {path,
-               IsTremulantLayer(*pLayer) || IsTremulantSample(*pSample),
-               pRelease->GetLong(
-                 wxT("ReleaseSelCriteria_LatestKeyReleaseTimeMs"), -1),
-               pRelease->GetLong(wxT("ReleaseCrossfadeLengthMs"), 0)});
-        }
+      /* Every release carries the attack's own tremulant state: the release
+       * lookup matches on it, so a release that disagrees is never found. */
+      if (!path.IsEmpty())
+        out.push_back(
+          {path,
+           isTremulant,
+           pRelease->GetLong(
+             wxT("ReleaseSelCriteria_LatestKeyReleaseTimeMs"), -1),
+           pRelease->GetLong(wxT("ReleaseCrossfadeLengthMs"), 0)});
     }
 }
 
@@ -1629,22 +1629,8 @@ void GOHauptwerkToOdf::BuildRank(
       if (harmonic <= 0)
         harmonic = HW_UNISON_HARMONIC;
 
-      /* Hauptwerk states one pipe as several attacks - the ordinary
-       * recording and, on the sets that have them, the one made with the
-       * tremulant running - and GrandOrgue selects between them by velocity
-       * and by the state of the tremulant, so all of them are carried. */
       WriteAttack(group, pipeKey, attacks[0]);
       Set(group, pipeKey + wxT("HarmonicNumber"), harmonic);
-      if (attacks.size() > 1) {
-        Set(group, pipeKey + wxT("AttackCount"), (long)attacks.size() - 1);
-        for (unsigned nAttacks = (unsigned)attacks.size(), attackI = 1;
-             attackI < nAttacks;
-             attackI++)
-          WriteAttack(
-            group,
-            wxString::Format(wxT("%sAttack%03u"), pipeKey, attackI),
-            attacks[attackI]);
-      }
 
       /* How hard the key is struck reaches the pipe, and the layer says how
        * far: the attenuation at the softest velocity, inverted on the sets
@@ -1770,7 +1756,7 @@ void GOHauptwerkToOdf::BuildRank(
       /* Hauptwerk picks a release by how long the key was held, so the
        * shortest limit has to be tried first; the file does not list them in
        * that order. */
-      CollectReleases(pipeId, releases);
+      CollectReleases(*pLayer, attacks[0].isTremulant, releases);
       std::sort(
         releases.begin(),
         releases.end(),

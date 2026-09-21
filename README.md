@@ -16,11 +16,13 @@ and settings as GrandOrgue and adds two things on top:
   from the sample set's own artwork where it provides one, and a generic
   console is drawn otherwise. Manuals, couplers, tremulants, enclosures, the
   switch and combination systems, crossfades, per-pipe voicing and the pitch
-  each sample was recorded at are all carried across. A pipe keeps all its
-  recorded attacks - including the ones made with the tremulant running, which
-  GrandOrgue plays while the tremulant is drawn - and the velocity shelves the
-  voicer set. Processing that costs time on older machines - the wind model
-  and per-pipe voicing - can be switched off.
+  each sample was recorded at are all carried across, together with the
+  velocity shelves the voicer set and the releases that belong to the chosen
+  attack. GrandOrgue refuses a pipe whose attacks disagree on whether the
+  sample loops - a set mixes a looped recording with a short one often enough
+  that it refuses to load - so each pipe is given the plainest speaking
+  recording of its layers. Processing that costs time on older machines - the
+  wind model and per-pipe voicing - can be switched off.
 - **Sample streaming.** With a fast SSD or NVMe disk, sample data is paged from
   the cache on demand instead of being loaded into memory, and the cache itself
   can be built without ever holding the whole organ in RAM. Sample sets larger

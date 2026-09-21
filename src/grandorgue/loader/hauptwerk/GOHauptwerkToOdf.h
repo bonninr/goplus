@@ -231,21 +231,26 @@ private:
    */
   bool IsTremulantLayer(const GOHauptwerkObject &layer) const;
   /**
-   * Collects the usable attacks of every layer of one pipe, in file order
-   * but with a speaking attack first: a pipe whose first recording is the
-   * tremulant one would otherwise be silent until the tremulant is drawn.
-   * @param outMainLayer set to the layer whose gain, voicing and velocity
-   *   shaping is carried across with the pipe, or nullptr when no layer
-   *   offers a usable attack
+   * Chooses the one attack GrandOrgue will play for a pipe: the plainest
+   * speaking recording of the layers, or the tremulant one when the pipe has
+   * nothing else. GrandOrgue refuses a pipe whose attacks disagree on
+   * whether the sample loops, so only one is carried.
+   * @param outMainLayer set to the layer the attack came from, whose gain,
+   *   voicing and velocity shaping are carried across with the pipe, or
+   *   nullptr when no layer offers a usable attack
    */
   void CollectAttacks(
     long pipeId,
     std::vector<GOHauptwerkAttack> &out,
     const GOHauptwerkObject *&outMainLayer) const;
   /**
-   * Collects the usable releases of every layer of one pipe, in file order.
+   * Collects the usable releases of one layer, carrying the attack's own
+   * tremulant state so the release lookup finds them.
    */
-  void CollectReleases(long pipeId, std::vector<GOHauptwerkRelease> &out) const;
+  void CollectReleases(
+    const GOHauptwerkObject &layer,
+    bool isTremulant,
+    std::vector<GOHauptwerkRelease> &out) const;
   /** Writes one attack's settings below the given prefix. */
   void WriteAttack(
     const wxString &group,
