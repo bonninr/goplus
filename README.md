@@ -44,8 +44,11 @@ keyboard:
 
 The player uses its configured channel mapping rather than asking, recording
 stops a tail after the last MIDI event (or at `--render-seconds` if the file
-never ends), and the application exits when it is done. Combine it with the
-streaming options above to record an organ larger than the machine's memory.
+never ends), and the application exits when it is done. Every stop is drawn
+unless `--render-stops` names a registration - `all`, `none`, or the one-based
+numbers `GOOrganLoadTest` lists for the organ - so a take always has something
+to sound with. Combine it with the streaming options above to record an organ
+larger than the machine's memory.
 
 ## Downloads
 
