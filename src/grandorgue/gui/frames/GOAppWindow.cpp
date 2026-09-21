@@ -21,6 +21,7 @@
 #include <wx/spinctrl.h>
 #include <wx/splash.h>
 #include <wx/textctrl.h>
+#include <wx/tokenzr.h>
 #include <wx/toolbar.h>
 
 #include "archive/GOArchiveManager.h"
@@ -679,6 +680,31 @@ void GOAppWindow::LoadOrgan(const GOOrgan &organ, const wxString &cmb) {
       p_OrganController->SetModificationListener(this);
     EnsureOrganStartedIfReady();
     StartRenderIfRequested();
+    ShowRequestedPanels();
+  }
+}
+
+void GOAppWindow::ShowRequestedPanels() {
+  const wxString &panelList = r_app.GetShowPanels();
+
+  if (!panelList.IsEmpty() && mp_organ && p_OrganController) {
+    const unsigned nPanels = p_OrganController->GetPanelCount();
+
+    if (panelList.Lower() == wxT("all")) {
+      for (unsigned panelI = 0; panelI < nPanels; panelI++)
+        mp_organ->ShowPanel(panelI);
+    } else {
+      wxStringTokenizer tokenizer(panelList, wxT(","));
+
+      while (tokenizer.HasMoreTokens()) {
+        long number = 0;
+
+        if (
+          tokenizer.GetNextToken().ToLong(&number) && number >= 1
+          && (unsigned)number <= nPanels)
+          mp_organ->ShowPanel((unsigned)number - 1);
+      }
+    }
   }
 }
 

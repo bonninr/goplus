@@ -98,6 +98,7 @@ private:
   wxTimer m_RenderTimer;
 
   void StartRenderIfRequested();
+  void ShowRequestedPanels();
   void OnRenderTimer(wxTimerEvent &event);
 
   // Updates ReleseLength in the model, in the config, and in the control

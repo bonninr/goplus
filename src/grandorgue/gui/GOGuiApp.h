@@ -76,6 +76,7 @@ protected:
   wxString m_PlayMidiPath;
   wxString m_RecordAudioPath;
   wxString m_RenderStops = wxT("all");
+  wxString m_ShowPanels;
   unsigned m_RenderMaxSeconds = 0;
   unsigned m_RenderTailSeconds = 8;
 
@@ -91,6 +92,7 @@ public:
   const wxString &GetPlayMidiPath() const { return m_PlayMidiPath; }
   const wxString &GetRecordAudioPath() const { return m_RecordAudioPath; }
   const wxString &GetRenderStops() const { return m_RenderStops; }
+  const wxString &GetShowPanels() const { return m_ShowPanels; }
   unsigned GetRenderMaxSeconds() const { return m_RenderMaxSeconds; }
   unsigned GetRenderTailSeconds() const { return m_RenderTailSeconds; }
 };

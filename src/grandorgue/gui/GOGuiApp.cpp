@@ -65,6 +65,7 @@ static const char *const OPTION_CONFIG_FILE = "c";
 static const char *const OPTION_PLAY_MIDI = "play-midi";
 static const char *const OPTION_RECORD_AUDIO = "record-audio";
 static const char *const OPTION_RENDER_STOPS = "render-stops";
+static const char *const OPTION_SHOW_PANELS = "show-panels";
 static const char *const OPTION_RENDER_SECONDS = "render-seconds";
 static const char *const OPTION_RENDER_TAIL = "render-tail";
 
@@ -112,6 +113,13 @@ static const wxCmdLineEntryDesc cmd_line_desc[] = {
    OPTION_RENDER_STOPS,
    wxTRANSLATE("stops to draw for a render: \"all\", \"none\", or their "
                "one-based numbers separated by commas (default all)"),
+   wxCMD_LINE_VAL_STRING,
+   wxCMD_LINE_PARAM_OPTIONAL},
+  {wxCMD_LINE_OPTION,
+   NULL,
+   OPTION_SHOW_PANELS,
+   wxTRANSLATE("open these panels after loading: \"all\" or one-based numbers "
+               "separated by commas, for scripted screenshots"),
    wxCMD_LINE_VAL_STRING,
    wxCMD_LINE_PARAM_OPTIONAL},
   {wxCMD_LINE_OPTION,
@@ -222,6 +230,7 @@ bool GOGuiApp::OnCmdLineParsed(wxCmdLineParser &parser) {
     parser.Found(OPTION_PLAY_MIDI, &m_PlayMidiPath);
     parser.Found(OPTION_RECORD_AUDIO, &m_RecordAudioPath);
     parser.Found(OPTION_RENDER_STOPS, &m_RenderStops);
+    parser.Found(OPTION_SHOW_PANELS, &m_ShowPanels);
     long seconds = 0;
     if (parser.Found(OPTION_RENDER_SECONDS, &seconds) && seconds >= 0)
       m_RenderMaxSeconds = (unsigned)seconds;

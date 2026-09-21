@@ -286,10 +286,13 @@ public:
                   << ", derived: " << nDerivedSwitches << "\n";
 
         for (unsigned n = controller.GetPanelCount(), panelI = 0; panelI < n;
-             panelI++)
+             panelI++) {
+          GOGUIPanel *pPanel = controller.GetPanel(panelI);
+
           std::cout << "  panel " << panelI << " : "
-                    << controller.GetPanel(panelI)->GetName().ToUTF8().data()
-                    << "\n";
+                    << pPanel->GetName().ToUTF8().data() << " ["
+                    << pPanel->GetGroupName().ToUTF8().data() << "]\n";
+        }
 
         GOMemoryPool &pool = controller.GetMemoryPool();
 
