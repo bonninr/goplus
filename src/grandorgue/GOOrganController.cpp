@@ -56,6 +56,7 @@
 #include "model/GODivisionalCoupler.h"
 #include "model/GOEnclosure.h"
 #include "model/GOManual.h"
+#include "model/GOStop.h"
 #include "model/GORank.h"
 #include "model/GOSoundingPipe.h"
 #include "model/GOSwitch.h"
