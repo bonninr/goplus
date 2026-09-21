@@ -275,6 +275,19 @@ public:
     const wxString &filename,
     const GOConfig::MidiChannelMappingChooser &chooseMapping);
 
+  /**
+   * Plays a MIDI file and records the result to a WAV file, for a run with
+   * no one at the console: the player uses its configured default channel
+   * mapping instead of asking, and the recording starts before the first
+   * note. The organ must be started already.
+   * @return whether the MIDI file was loaded and playback began
+   */
+  bool StartRender(const wxString &midiFile, const wxString &wavFile);
+  /** @return whether a render started with StartRender is still playing */
+  bool IsRendering();
+  /** Stops the playback and closes the recording. Safe to call twice. */
+  void StopRender();
+
   int GetVolume() const { return m_SoundEngine.GetVolume(); }
   /** Sets the master volume and forwards it to the sound engine. */
   void SetVolume(int volume) { m_SoundEngine.SetVolume(volume); }

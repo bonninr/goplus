@@ -27,6 +27,8 @@ private:
   wxString m_Filename;
   bool m_DoRename;
 
+  void StartRecordingTo(const wxString &filename, bool rename);
+
   void ButtonStateChanged(int id, bool newState) override;
 
   void UpdateDisplay();
@@ -39,6 +41,11 @@ public:
   void SetAudioRecorder(GOSoundRecorderTask *recorder);
 
   void StartRecording(bool rename);
+  /**
+   * Records to a named file instead of a timestamped one, for a render run
+   * that has no one to answer the rename dialog.
+   */
+  void StartRecording(const wxString &filename);
   bool IsRecording();
   void StopRecording();
 

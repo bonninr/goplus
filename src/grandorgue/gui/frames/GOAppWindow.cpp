@@ -182,9 +182,16 @@ GOAppWindow::GOAppWindow(
     m_InSettings(false),
     m_AfterSettingsEventType(wxEVT_NULL),
     m_AfterSettingsEventId(0),
-    p_AfterSettingsEventOrgan(NULL) {
+    p_AfterSettingsEventOrgan(NULL),
+    m_IsRenderMode(r_app.IsRenderMode()),
+    m_RenderStarted(false),
+    m_RenderElapsedSeconds(0),
+    m_RenderTailLeft(0) {
   r_SoundSystem.SetCloseListener(this);
   SetIcon(get_go_icon());
+
+  m_RenderTimer.SetOwner(this);
+  Bind(wxEVT_TIMER, &GOAppWindow::OnRenderTimer, this);
 
   wxArrayString choices;
 
@@ -545,8 +552,11 @@ void GOAppWindow::Init(const wxString &filename, bool isGuiOnly) {
       r_SoundSystem.getLastErrorMessage(), GOSettingsDialog::PAGE_AUDIO));
   r_SoundSystem.SetLogSoundErrorMessages(true);
 
-  bool midiProblems
-    = !r_MidiSystem.HasActiveDevice() && r_config.IsToCheckMidiOnStart();
+  /* A render run has no one to answer the settings dialog, and a missing
+   * MIDI input device does not stop it from playing a file. A sound problem
+   * still does, and still brings the dialog up. */
+  bool midiProblems = !m_IsRenderMode && !r_MidiSystem.HasActiveDevice()
+    && r_config.IsToCheckMidiOnStart();
 
   if (!soundProblems && midiProblems)
     settingsReasons.push_back(GOSettingsReason(
@@ -668,6 +678,45 @@ void GOAppWindow::LoadOrgan(const GOOrgan &organ, const wxString &cmb) {
     if (p_OrganController)
       p_OrganController->SetModificationListener(this);
     EnsureOrganStartedIfReady();
+    StartRenderIfRequested();
+  }
+}
+
+void GOAppWindow::StartRenderIfRequested() {
+  if (
+    m_IsRenderMode && !m_RenderStarted && p_OrganController
+    && p_OrganController->IsOrganStarted()) {
+    m_RenderStarted = true;
+    m_RenderTailLeft = r_app.GetRenderTailSeconds();
+    if (p_OrganController->StartRender(
+          r_app.GetPlayMidiPath(), r_app.GetRecordAudioPath()))
+      m_RenderTimer.Start(1000);
+    else {
+      wxLogError(_("Failed to load the MIDI file to render"));
+      CloseProgram(true);
+    }
+  }
+}
+
+void GOAppWindow::OnRenderTimer(wxTimerEvent &event) {
+  const bool isPlayerDone
+    = !p_OrganController || !p_OrganController->IsRendering();
+
+  m_RenderElapsedSeconds++;
+  if (isPlayerDone && m_RenderTailLeft > 0)
+    m_RenderTailLeft--;
+
+  /* The tail is the organ's own release ringing out after the last MIDI
+   * event; the cap is only for a file that never ends. */
+  const bool isMaxReached = r_app.GetRenderMaxSeconds() > 0
+    && m_RenderElapsedSeconds >= r_app.GetRenderMaxSeconds();
+  const bool isFinished = isPlayerDone && m_RenderTailLeft == 0;
+
+  if (isMaxReached || isFinished) {
+    m_RenderTimer.Stop();
+    if (p_OrganController)
+      p_OrganController->StopRender();
+    CloseProgram(true);
   }
 }
 

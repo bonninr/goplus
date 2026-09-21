@@ -62,6 +62,10 @@ static const char *const SWITCH_GUI = "g";
 static const char *const SWITCH_HELP = "h";
 static const char *const OPTION_INSTANCE = "i";
 static const char *const OPTION_CONFIG_FILE = "c";
+static const char *const OPTION_PLAY_MIDI = "play-midi";
+static const char *const OPTION_RECORD_AUDIO = "record-audio";
+static const char *const OPTION_RENDER_SECONDS = "render-seconds";
+static const char *const OPTION_RENDER_TAIL = "render-tail";
 
 static const wxCmdLineEntryDesc cmd_line_desc[] = {
   {wxCMD_LINE_SWITCH,
@@ -87,6 +91,34 @@ static const wxCmdLineEntryDesc cmd_line_desc[] = {
    "config",
    wxTRANSLATE("specify GrandOrgue config file name"),
    wxCMD_LINE_VAL_STRING,
+   wxCMD_LINE_PARAM_OPTIONAL},
+  {wxCMD_LINE_OPTION,
+   NULL,
+   OPTION_PLAY_MIDI,
+   wxTRANSLATE("play a MIDI file after loading the organ, then exit "
+               "(needs --record-audio)"),
+   wxCMD_LINE_VAL_STRING,
+   wxCMD_LINE_PARAM_OPTIONAL},
+  {wxCMD_LINE_OPTION,
+   NULL,
+   OPTION_RECORD_AUDIO,
+   wxTRANSLATE("record the rendered audio to this WAV file (needs "
+               "--play-midi)"),
+   wxCMD_LINE_VAL_STRING,
+   wxCMD_LINE_PARAM_OPTIONAL},
+  {wxCMD_LINE_OPTION,
+   NULL,
+   OPTION_RENDER_SECONDS,
+   wxTRANSLATE("stop a render after this many seconds even if the MIDI file "
+               "is not finished (default: no limit)"),
+   wxCMD_LINE_VAL_NUMBER,
+   wxCMD_LINE_PARAM_OPTIONAL},
+  {wxCMD_LINE_OPTION,
+   NULL,
+   OPTION_RENDER_TAIL,
+   wxTRANSLATE("how many seconds to keep recording after the last MIDI event "
+               "(default 8)"),
+   wxCMD_LINE_VAL_NUMBER,
    wxCMD_LINE_PARAM_OPTIONAL},
   {wxCMD_LINE_SWITCH,
    "v",
@@ -177,6 +209,22 @@ bool GOGuiApp::OnCmdLineParsed(wxCmdLineParser &parser) {
     long headKB = 0;
     if (parser.Found("head-kb", &headKB) && headKB >= 0)
       m_StreamHeadKBOverride = headKB;
+  }
+  if (res) {
+    parser.Found(OPTION_PLAY_MIDI, &m_PlayMidiPath);
+    parser.Found(OPTION_RECORD_AUDIO, &m_RecordAudioPath);
+    long seconds = 0;
+    if (parser.Found(OPTION_RENDER_SECONDS, &seconds) && seconds >= 0)
+      m_RenderMaxSeconds = (unsigned)seconds;
+    if (parser.Found(OPTION_RENDER_TAIL, &seconds) && seconds >= 0)
+      m_RenderTailSeconds = (unsigned)seconds;
+    /* One without the other would record silence or play to nowhere, which
+     * is never what was meant. */
+    if (m_PlayMidiPath.IsEmpty() != m_RecordAudioPath.IsEmpty()) {
+      wxMessageOutput::Get()->Printf(
+        _("--play-midi and --record-audio have to be given together"));
+      res = false;
+    }
   }
   if (res)
     for (unsigned i = 0; i < parser.GetParamCount(); i++)
