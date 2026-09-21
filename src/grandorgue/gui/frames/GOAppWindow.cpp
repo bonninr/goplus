@@ -688,6 +688,8 @@ void GOAppWindow::StartRenderIfRequested() {
     && p_OrganController->IsOrganStarted()) {
     m_RenderStarted = true;
     m_RenderTailLeft = r_app.GetRenderTailSeconds();
+    if (!p_OrganController->EngageStops(r_app.GetRenderStops()))
+      wxLogWarning(_("Some of the stops named for the render do not exist"));
     if (p_OrganController->StartRender(
           r_app.GetPlayMidiPath(), r_app.GetRecordAudioPath()))
       m_RenderTimer.Start(1000);

@@ -27,6 +27,7 @@
 #include "loader/GOProgressMonitor.h"
 #include "model/GOManual.h"
 #include "model/GORank.h"
+#include "model/GOStop.h"
 #include "model/GOSwitch.h"
 #include "model/GOTremulant.h"
 
@@ -187,6 +188,28 @@ public:
           }
         }
         std::cout << "  stops    : " << nStops << "\n";
+
+        /* The numbers are what --render-stops takes, so they are printed
+         * with the names to choose a registration from. */
+        unsigned stopN = 0;
+
+        for (unsigned manualI = controller.GetFirstManualIndex();
+             manualI <= controller.GetManualAndPedalCount();
+             manualI++) {
+          GOManual *pManual = controller.GetManual(manualI);
+
+          if (pManual)
+            for (unsigned nStops = pManual->GetStopCount(), stopI = 0;
+                 stopI < nStops;
+                 stopI++) {
+              GOStop *pStop = pManual->GetStop(stopI);
+
+              if (pStop)
+                std::cout << "  stop " << ++stopN << " : "
+                          << pStop->GetName().ToUTF8().data() << " ("
+                          << pManual->GetName().ToUTF8().data() << ")\n";
+            }
+        }
         std::cout << "  couplers : " << nCouplers << "\n";
         std::cout << "  voicing  : " << (isNoVoicing ? "off" : "on") << "\n";
         std::cout << "  windmodel: " << (isWindModel ? "on" : "off") << "\n";

@@ -276,6 +276,15 @@ public:
     const GOConfig::MidiChannelMappingChooser &chooseMapping);
 
   /**
+   * Draws stops before a render, so the file being played has a
+   * registration to sound with.
+   * @param stopList "all", "none", or a comma-separated list of the one-based
+   *   stop numbers in the order the organ holds them
+   * @return whether every number named a stop
+   */
+  bool EngageStops(const wxString &stopList);
+
+  /**
    * Plays a MIDI file and records the result to a WAV file, for a run with
    * no one at the console: the player uses its configured default channel
    * mapping instead of asking, and the recording starts before the first

@@ -8,10 +8,12 @@
 #include "GOOrganController.h"
 
 #include <algorithm>
+#include <set>
 
 #include <wx/filename.h>
 #include <wx/log.h>
 #include <wx/msgdlg.h>
+#include <wx/tokenzr.h>
 #include <wx/txtstrm.h>
 #include <wx/wfstream.h>
 
@@ -896,6 +898,52 @@ void GOOrganController::LoadMIDIFile(
     midiInputNumbers.push_back(GetManual(i)->GetMidiInputNumber());
 
   m_MidiPlayer->LoadFile(filename, hasPedal, midiInputNumbers, chooseMapping);
+}
+
+bool GOOrganController::EngageStops(const wxString &stopList) {
+  const wxString lower = stopList.Lower();
+  const bool isAll = lower == wxT("all");
+  std::set<unsigned> wantedNumbers;
+  bool isKnown = true;
+
+  if (!isAll && lower != wxT("none") && !lower.IsEmpty()) {
+    wxStringTokenizer tokenizer(stopList, wxT(","));
+
+    while (tokenizer.HasMoreTokens()) {
+      long number = 0;
+      const wxString token = tokenizer.GetNextToken().Trim(true).Trim(false);
+
+      if (token.ToLong(&number) && number > 0)
+        wantedNumbers.insert((unsigned)number);
+      else
+        isKnown = false;
+    }
+  }
+
+  unsigned stopN = 0;
+
+  for (unsigned manualN = GetFirstManualIndex();
+       manualN <= GetManualAndPedalCount();
+       manualN++) {
+    GOManual *pManual = GetManual(manualN);
+
+    if (pManual)
+      for (unsigned nStops = pManual->GetStopCount(), stopI = 0; stopI < nStops;
+           stopI++) {
+        GOStop *pStop = pManual->GetStop(stopI);
+
+        stopN++;
+        if (
+          pStop
+          && (isAll || wantedNumbers.count(stopN) > 0))
+          pStop->SetButtonState(true);
+      }
+  }
+  if (!wantedNumbers.empty())
+    for (unsigned number : wantedNumbers)
+      if (number > stopN)
+        isKnown = false;
+  return isKnown;
 }
 
 bool GOOrganController::StartRender(
