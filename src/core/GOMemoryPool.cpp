@@ -61,7 +61,15 @@ bool inline GOMemoryPool::InMemoryPool(void *ptr) {
 }
 
 void *GOMemoryPool::Alloc(size_t length, bool final) {
-  if (m_MemoryLimit && m_CacheSize + m_PoolSize + m_MallocSize > m_MemoryLimit)
+  /* A mapped cache is not memory the process has to hold: its pages come
+   * from the file and the system may evict them again, which is the whole
+   * point of streaming. Counting it against the limit would refuse every
+   * allocation once the cache is larger than a share of the machine's RAM -
+   * exactly the sets streaming exists for. */
+  const size_t usedMemory
+    = m_PoolSize + m_MallocSize + (m_IsStreamFromCache ? 0 : m_CacheSize);
+
+  if (m_MemoryLimit && usedMemory > m_MemoryLimit)
     return NULL;
   if (m_IsTransientMode)
     /* 'final' is ignored here: the caller intends to free this block again
