@@ -71,12 +71,26 @@ protected:
   int m_StreamOverride = -1;
   int m_BoundedBuildOverride = -1;
   long m_StreamHeadKBOverride = -1;
+  /* Render mode: play a MIDI file and record the result, then exit. Both
+   * paths have to be given for the mode to be on. */
+  wxString m_PlayMidiPath;
+  wxString m_RecordAudioPath;
+  unsigned m_RenderMaxSeconds = 0;
+  unsigned m_RenderTailSeconds = 8;
 
 public:
   ~GOGuiApp();
 
   bool IsToRestartAfterExit() const { return m_IsToRestartAfterExit; }
   void SetToRestartAfterExit() { m_IsToRestartAfterExit = true; }
+
+  bool IsRenderMode() const {
+    return !m_PlayMidiPath.IsEmpty() && !m_RecordAudioPath.IsEmpty();
+  }
+  const wxString &GetPlayMidiPath() const { return m_PlayMidiPath; }
+  const wxString &GetRecordAudioPath() const { return m_RecordAudioPath; }
+  unsigned GetRenderMaxSeconds() const { return m_RenderMaxSeconds; }
+  unsigned GetRenderTailSeconds() const { return m_RenderTailSeconds; }
 };
 
 DECLARE_APP(GOGuiApp)

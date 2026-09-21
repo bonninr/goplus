@@ -145,13 +145,25 @@ void GOAudioRecorder::StopRecording() {
 }
 
 void GOAudioRecorder::StartRecording(bool rename) {
+  if (m_OrganController)
+    StartRecordingTo(
+      m_OrganController->GetSettings().AudioRecorderPath()
+        + wxFileName::GetPathSeparator()
+        + wxDateTime::UNow().Format(_("%Y-%m-%d-%H-%M-%S.%l.wav")),
+      rename);
+}
+
+void GOAudioRecorder::StartRecording(const wxString &filename) {
+  StartRecordingTo(filename, false);
+}
+
+void GOAudioRecorder::StartRecordingTo(
+  const wxString &filename, bool rename) {
   StopRecording();
   if (!m_OrganController)
     return;
 
-  m_Filename = m_OrganController->GetSettings().AudioRecorderPath()
-    + wxFileName::GetPathSeparator()
-    + wxDateTime::UNow().Format(_("%Y-%m-%d-%H-%M-%S.%l.wav"));
+  m_Filename = filename;
   m_DoRename = rename;
 
   m_recorder->Open(m_Filename);

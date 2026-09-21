@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <wx/frame.h>
+#include <wx/timer.h>
 
 #include "gui/size/GOResizable.h"
 #include "help/GOHelpRequestor.h"
@@ -86,6 +87,18 @@ private:
   wxEventType m_AfterSettingsEventType;
   int m_AfterSettingsEventId;
   GOOrgan *p_AfterSettingsEventOrgan;
+
+  /* Render mode: the organ is loaded, a MIDI file is played into it and the
+   * result recorded to a WAV, then the application leaves. Driven by a timer
+   * because the player has no finished callback. */
+  bool m_IsRenderMode;
+  bool m_RenderStarted;
+  unsigned m_RenderElapsedSeconds;
+  unsigned m_RenderTailLeft;
+  wxTimer m_RenderTimer;
+
+  void StartRenderIfRequested();
+  void OnRenderTimer(wxTimerEvent &event);
 
   // Updates ReleseLength in the model, in the config, and in the control
   void UpdateReleaseLength(unsigned releaseLength);

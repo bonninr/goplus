@@ -898,6 +898,35 @@ void GOOrganController::LoadMIDIFile(
   m_MidiPlayer->LoadFile(filename, hasPedal, midiInputNumbers, chooseMapping);
 }
 
+bool GOOrganController::StartRender(
+  const wxString &midiFile, const wxString &wavFile) {
+  /* Nobody can answer the channel mapping dialog in a render run, so the
+   * player is told to use its configured default instead of asking. */
+  m_config.IsToAskMidiPlayerChannelMapping(false);
+  m_AudioRecorder->StartRecording(wavFile);
+  LoadMIDIFile(
+    midiFile,
+    [](bool, GOConfig::MidiFileChannelMapping)
+      -> std::optional<GOConfig::MidiFileChannelMapping> {
+      return std::nullopt;
+    });
+
+  const bool isLoaded = m_MidiPlayer->IsLoaded();
+
+  if (isLoaded)
+    m_MidiPlayer->Play();
+  else
+    m_AudioRecorder->StopRecording();
+  return isLoaded;
+}
+
+bool GOOrganController::IsRendering() { return m_MidiPlayer->IsPlaying(); }
+
+void GOOrganController::StopRender() {
+  m_MidiPlayer->StopPlaying();
+  m_AudioRecorder->StopRecording();
+}
+
 void GOOrganController::PreconfigRecorder() {
   for (unsigned i = GetFirstManualIndex(); i <= GetManualAndPedalCount(); i++) {
     wxString id = wxString::Format(wxT("M%d"), i);

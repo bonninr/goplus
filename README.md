@@ -34,6 +34,19 @@ audio configuration, the recorder, the sample cache format - is the upstream
 GrandOrgue code. The built program is still called `GrandOrgue`, so existing
 shortcuts, file associations and configuration directories keep working.
 
+## Rendering without a console
+
+A run can play a MIDI file into the loaded organ and record the result, which
+is how a sample set is tested or a take is produced without anyone at the
+keyboard:
+
+    GrandOrgue --play-midi piece.mid --record-audio take.wav "organ.Organ_Hauptwerk_xml"
+
+The player uses its configured channel mapping rather than asking, recording
+stops a tail after the last MIDI event (or at `--render-seconds` if the file
+never ends), and the application exits when it is done. Combine it with the
+streaming options above to record an organ larger than the machine's memory.
+
 ## Downloads
 
 Preview builds for Windows, Linux (x86_64 and Raspberry Pi) and macOS are
