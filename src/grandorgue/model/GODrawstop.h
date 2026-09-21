@@ -78,6 +78,15 @@ public:
     GODrawstop *pDrawStop, unsigned switchN, const wxString &group);
   /* - For tests only */
 
+  /**
+   * The drawstops this one follows, empty for one the player operates
+   * directly. A read-only object (one with a Function) is operated through
+   * these, not through itself.
+   */
+  const std::vector<GODrawstop *> &GetControllingDrawstops() const {
+    return m_ControllingDrawstops;
+  }
+
   bool IsToStoreInDivisional() const { return m_IsToStoreInDivisional; }
   bool IsToStoreInGeneral() const { return m_IsToStoreInGeneral; }
   bool GetCombinationState() const override { return IsEngaged(); }

@@ -69,6 +69,7 @@ public:
     bool isBoundedBuild = false;
     bool isKeepCache = false;
     unsigned headKb = 256;
+    wxString engageStops;
 
     for (int i = 1; i < argc; i++) {
       const wxString arg = argv[i];
@@ -95,6 +96,8 @@ public:
         isKeepCache = true;
       else if (arg == wxT("--head-kb") && i + 1 < argc)
         headKb = wxAtoi(argv[++i]);
+      else if (arg == wxT("--engage-stops") && i + 1 < argc)
+        engageStops = argv[++i];
       else if (!arg.StartsWith(wxT("-")))
         organPath = arg;
     }
@@ -211,6 +214,29 @@ public:
             }
         }
         std::cout << "  couplers : " << nCouplers << "\n";
+
+        if (!engageStops.IsEmpty()) {
+          const bool isKnown = controller.EngageStops(engageStops);
+          unsigned nEngaged = 0;
+
+          for (unsigned manualI = controller.GetFirstManualIndex();
+               manualI <= controller.GetManualAndPedalCount();
+               manualI++) {
+            GOManual *pManual = controller.GetManual(manualI);
+
+            if (pManual)
+              for (unsigned nStops = pManual->GetStopCount(), stopI = 0;
+                   stopI < nStops;
+                   stopI++) {
+                GOStop *pStop = pManual->GetStop(stopI);
+
+                if (pStop && pStop->IsEngaged())
+                  nEngaged++;
+              }
+          }
+          std::cout << "  engaged  : " << nEngaged << " (all numbers known: "
+                    << (isKnown ? "yes" : "no") << ")\n";
+        }
         std::cout << "  voicing  : " << (isNoVoicing ? "off" : "on") << "\n";
         std::cout << "  windmodel: " << (isWindModel ? "on" : "off") << "\n";
 

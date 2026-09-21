@@ -901,6 +901,24 @@ void GOOrganController::LoadMIDIFile(
   m_MidiPlayer->LoadFile(filename, hasPedal, midiInputNumbers, chooseMapping);
 }
 
+/**
+ * Engages one drawstop, walking past the switches it follows. A stop that
+ * is controlled by a switch - which is how a Hauptwerk stop reaches the
+ * console - is read-only: drawing it means drawing the switch.
+ */
+static void engage_drawstop(
+  GODrawstop *pDrawstop, std::set<GODrawstop *> &visitedDrawstops) {
+  if (!pDrawstop || visitedDrawstops.count(pDrawstop) > 0)
+    return;
+
+  visitedDrawstops.insert(pDrawstop);
+  if (pDrawstop->IsReadOnly())
+    for (GODrawstop *pControlling : pDrawstop->GetControllingDrawstops())
+      engage_drawstop(pControlling, visitedDrawstops);
+  else
+    pDrawstop->SetButtonState(true);
+}
+
 bool GOOrganController::EngageStops(const wxString &stopList) {
   const wxString lower = stopList.Lower();
   const bool isAll = lower == wxT("all");
@@ -922,6 +940,7 @@ bool GOOrganController::EngageStops(const wxString &stopList) {
   }
 
   unsigned stopN = 0;
+  std::set<GODrawstop *> visitedDrawstops;
 
   for (unsigned manualN = GetFirstManualIndex();
        manualN <= GetManualAndPedalCount();
@@ -934,10 +953,8 @@ bool GOOrganController::EngageStops(const wxString &stopList) {
         GOStop *pStop = pManual->GetStop(stopI);
 
         stopN++;
-        if (
-          pStop
-          && (isAll || wantedNumbers.count(stopN) > 0))
-          pStop->SetButtonState(true);
+        if (pStop && (isAll || wantedNumbers.count(stopN) > 0))
+          engage_drawstop(pStop, visitedDrawstops);
       }
   }
   if (!wantedNumbers.empty())
